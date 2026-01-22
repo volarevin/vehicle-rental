@@ -204,7 +204,7 @@ class AdminDashboard(tk.Frame):
         self.u_lname.grid(row=1, column=1, padx=5, pady=5)
 
         tk.Label(form_frame, text="Role:", bg="white").grid(row=1, column=2, padx=5, pady=5)
-        self.u_role = ttk.Combobox(form_frame, values=["Member", "Worker", "Receptionist", "Admin"])
+        self.u_role = ttk.Combobox(form_frame, values=["Member", "Receptionist", "Admin"])
         self.u_role.grid(row=1, column=3, padx=5, pady=5)
 
         RoundedButton(form_frame, width=100, height=30, corner_radius=10, bg_color="#27ae60", fg_color="white", text="Add User", command=self.add_user).grid(row=1, column=4, padx=10, pady=5)
@@ -242,11 +242,21 @@ class AdminDashboard(tk.Frame):
                 row += 1
 
     def add_user(self):
+        fname = self.u_fname.get().strip()
+        lname = self.u_lname.get().strip()
+        username = self.u_username.get().strip()
+        password = self.u_password.get()
+        role = self.u_role.get()
+        
+        if not fname or not lname:
+            messagebox.showerror("Error", "First name and last name are required")
+            return
+        if not username or not password:
+            messagebox.showerror("Error", "Username and password are required")
+            return
+        
         try:
-            if self.controller.add_user(
-                self.u_username.get(), self.u_password.get(), 
-                self.u_fname.get(), self.u_lname.get(), self.u_role.get()
-            ):
+            if self.controller.add_user(username, password, fname, lname, role):
                 messagebox.showinfo("Success", "User added")
                 self.load_users()
                 # Clear

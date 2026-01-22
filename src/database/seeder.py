@@ -1,6 +1,12 @@
 import mysql.connector
 import bcrypt
-from src.config import DB_CONFIG
+
+DB_CONFIG = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': '',
+    'database': 'vehicle_rental'
+}
 
 def seed_database():
     # Connect to MySQL Server (without database first to create it)
@@ -36,8 +42,9 @@ def seed_database():
 
         # Seed Users
         users = [
+            ("admin", password_hash, "System", "Admin", "Admin"),
             ("sherwin", password_hash, "Sherwin", "Arizobal", "Receptionist"),
-            ("james", password_hash, "James", "Banaag", "Worker"),
+            ("james", password_hash, "James", "Banaag", "Receptionist"),
             ("bien", password_hash, "Bien", "Hipolito", "Member")
         ]
 
@@ -60,7 +67,7 @@ def seed_database():
         ]
 
         cursor.executemany(
-            "INSERT IGNORE INTO Vehicles (make, model, year, license_plate, type, daily_rate) VALUES (%s, %s, %s, %s, %s, %s)",
+            "INSERT IGNORE INTO Vehicles (brand, model, year, license_plate, type, daily_rate) VALUES (%s, %s, %s, %s, %s, %s)",
             vehicles
         )
         print("Vehicles seeded.")

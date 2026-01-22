@@ -1,6 +1,6 @@
 import bcrypt
 from src.database.db_manager import DBManager
-from src.models.user import Receptionist, Worker, Member, Admin
+from src.models.user import Receptionist, Member, Admin
 
 class AuthController:
     def __init__(self):
@@ -37,8 +37,6 @@ class AuthController:
         role = data['role']
         if role == 'Receptionist':
             return Receptionist(data['user_id'], data['username'], data['first_name'], data['last_name'], role)
-        elif role == 'Worker':
-            return Worker(data['user_id'], data['username'], data['first_name'], data['last_name'], role)
         elif role == 'Member':
             return Member(data['user_id'], data['username'], data['first_name'], data['last_name'], role)
         elif role == 'Admin':

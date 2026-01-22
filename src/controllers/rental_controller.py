@@ -36,22 +36,19 @@ class RentalController:
         if insurance:
             total_cost += (500 * delta) # Flat 500 per day for insurance
 
-        # Insert Reservation
+        # Insert Reservation as Pending (requires approval)
         ins_query = """
             INSERT INTO Reservations (user_id, vehicle_id, start_date, end_date, insurance_added, total_cost, status)
-            VALUES (%s, %s, %s, %s, %s, %s, 'Active')
+            VALUES (%s, %s, %s, %s, %s, %s, 'Pending')
         """
         self.db.execute_query(ins_query, (user_id, vehicle_id, start_date, end_date, insurance, total_cost))
         
-        # Update Vehicle Status
-        upd_query = "UPDATE Vehicles SET status = 'Rented' WHERE vehicle_id = %s"
-        self.db.execute_query(upd_query, (vehicle_id,))
-
+        # Vehicle remains Available until approved
         return True
 
     def get_user_reservations(self, user_id):
         query = """
-            SELECT r.*, v.brand, v.model, v.license_plate 
+            SELECT r.*, v.brand, v.model, v.license_plate, v.image 
             FROM Reservations r 
             JOIN Vehicles v ON r.vehicle_id = v.vehicle_id 
             WHERE r.user_id = %s
@@ -59,17 +56,43 @@ class RentalController:
         """
         return self.db.fetch_all(query, (user_id,))
 
-    def get_all_active_rentals(self):
+    def get_pending_reservations(self):
         query = """
-            SELECT r.*, v.brand, v.model, u.username 
+            SELECT r.*, v.brand, v.model, u.username, u.first_name, u.last_name, v.image 
             FROM Reservations r 
             JOIN Vehicles v ON r.vehicle_id = v.vehicle_id 
             JOIN Users u ON r.user_id = u.user_id
-            WHERE r.status = 'Active'
+            WHERE r.status = 'Pending'
+            ORDER BY r.created_at ASC
         """
         return self.db.fetch_all(query)
 
-    def return_vehicle(self, reservation_id, vehicle_id, condition_notes):
+    def approve_reservation(self, reservation_id):
+        # Get reservation details
+        res_query = "SELECT vehicle_id FROM Reservations WHERE reservation_id = %s"
+        res = self.db.fetch_one(res_query, (reservation_id,))
+        if not res:
+            return False
+        
+        # Update Reservation Status to Active
+        upd_res = "UPDATE Reservations SET status = 'Active' WHERE reservation_id = %s"
+        self.db.execute_query(upd_res, (reservation_id,))
+        
+        # Update Vehicle Status to Rented
+        upd_veh = "UPDATE Vehicles SET status = 'Rented' WHERE vehicle_id = %s"
+        self.db.execute_query(upd_veh, (res['vehicle_id'],))
+        
+        return True
+
+    def reject_reservation(self, reservation_id):
+        # Update Reservation Status to Rejected
+        upd_res = "UPDATE Reservations SET status = 'Rejected' WHERE reservation_id = %s"
+        self.db.execute_query(upd_res, (reservation_id,))
+        
+        # Vehicle remains Available
+        return True
+
+    def return_vehicle(self, reservation_id, vehicle_id, condition_notes, user_id=None):
         # Update Reservation
         upd_res = "UPDATE Reservations SET status = 'Completed' WHERE reservation_id = %s"
         self.db.execute_query(upd_res, (reservation_id,))
@@ -80,21 +103,21 @@ class RentalController:
 
         # Log Return
         log_query = """
-            INSERT INTO Vehicle_Logs (vehicle_id, event_type, description)
-            VALUES (%s, 'Return', %s)
+            INSERT INTO Vehicle_Logs (vehicle_id, user_id, event_type, description)
+            VALUES (%s, %s, 'Return', %s)
         """
-        self.db.execute_query(log_query, (vehicle_id, condition_notes))
+        self.db.execute_query(log_query, (vehicle_id, user_id, condition_notes))
         return True
 
     def get_all_vehicles(self):
         return self.db.fetch_all("SELECT * FROM Vehicles")
 
-    def add_vehicle(self, brand, model, year, license_plate, v_type, rate):
+    def add_vehicle(self, brand, model, year, license_plate, v_type, rate, image=None):
         query = """
-            INSERT INTO Vehicles (brand, model, year, license_plate, type, daily_rate, status)
-            VALUES (%s, %s, %s, %s, %s, %s, 'Available')
+            INSERT INTO Vehicles (brand, model, year, license_plate, type, daily_rate, image, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'Available')
         """
-        self.db.execute_query(query, (brand, model, year, license_plate, v_type, rate))
+        self.db.execute_query(query, (brand, model, year, license_plate, v_type, rate, image))
         return True
 
     def delete_vehicle(self, vehicle_id):
@@ -106,56 +129,30 @@ class RentalController:
         return self.db.fetch_all("SELECT * FROM Equipment")
 
     def cancel_reservation(self, reservation_id, vehicle_id):
+        # Get current status
+        status_query = "SELECT status FROM Reservations WHERE reservation_id = %s"
+        res = self.db.fetch_one(status_query, (reservation_id,))
+        if not res:
+            return False
+        
+        # Only allow cancellation of pending or active reservations
+        if res['status'] not in ['Pending', 'Active']:
+            return False
+        
         # Update Reservation Status
         upd_res = "UPDATE Reservations SET status = 'Cancelled' WHERE reservation_id = %s"
         self.db.execute_query(upd_res, (reservation_id,))
         
-        # Make vehicle available again
+        # Make vehicle available again for both pending and active reservations
         upd_veh = "UPDATE Vehicles SET status = 'Available' WHERE vehicle_id = %s"
         self.db.execute_query(upd_veh, (vehicle_id,))
         return True
 
-    def update_vehicle(self, vehicle_id, brand, model, year, license_plate, v_type, rate):
+    def update_vehicle(self, vehicle_id, brand, model, year, license_plate, v_type, rate, image=None):
         query = """
             UPDATE Vehicles 
-            SET brand=%s, model=%s, year=%s, license_plate=%s, type=%s, daily_rate=%s
+            SET brand=%s, model=%s, year=%s, license_plate=%s, type=%s, daily_rate=%s, image=%s
             WHERE vehicle_id=%s
         """
-        self.db.execute_query(query, (brand, model, year, license_plate, v_type, rate, vehicle_id))
-        return True
-
-        # Check if active rentals exist
-        check = "SELECT COUNT(*) as count FROM Reservations WHERE vehicle_id = %s AND status = 'Active'"
-        res = self.db.fetch_one(check, (vehicle_id,))
-        if res['count'] > 0:
-            raise Exception("Cannot delete vehicle with active rentals")
-        
-        self.db.execute_query("DELETE FROM Vehicles WHERE vehicle_id = %s", (vehicle_id,))
-        return True
-
-    def get_equipment(self):
-        return self.db.fetch_all("SELECT * FROM Equipment")
-
-    def cancel_reservation(self, reservation_id):
-        # Get vehicle_id first
-        res = self.db.fetch_one("SELECT vehicle_id, status FROM Reservations WHERE reservation_id = %s", (reservation_id,))
-        if not res:
-            raise Exception("Reservation not found")
-        if res['status'] != 'Active':
-            raise Exception("Cannot cancel non-active reservation")
-            
-        # Update Reservation
-        self.db.execute_query("UPDATE Reservations SET status = 'Cancelled' WHERE reservation_id = %s", (reservation_id,))
-        
-        # Update Vehicle
-        self.db.execute_query("UPDATE Vehicles SET status = 'Available' WHERE vehicle_id = %s", (res['vehicle_id'],))
-        return True
-
-    def update_vehicle(self, vehicle_id, brand, model, year, license_plate, v_type, rate):
-        query = """
-            UPDATE Vehicles 
-            SET brand=%s, model=%s, year=%s, license_plate=%s, type=%s, daily_rate=%s 
-            WHERE vehicle_id=%s
-        """
-        self.db.execute_query(query, (brand, model, year, license_plate, v_type, rate, vehicle_id))
+        self.db.execute_query(query, (brand, model, year, license_plate, v_type, rate, image, vehicle_id))
         return True

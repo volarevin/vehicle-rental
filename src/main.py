@@ -8,7 +8,7 @@ import tkinter as tk
 from src.controllers.auth_controller import AuthController
 from src.views.login_view import LoginView
 from src.views.member_dashboard import MemberDashboard
-from src.views.staff_dashboard import StaffDashboard
+from src.views.receptionist_dashboard import ReceptionistDashboard
 from src.views.admin_dashboard import AdminDashboard
 
 class MainApp(tk.Tk):
@@ -40,8 +40,8 @@ class MainApp(tk.Tk):
             MemberDashboard(self, self.current_user, self.logout)
         elif self.current_user.role == "Admin":
             AdminDashboard(self, self.current_user, self.logout)
-        else:
-            StaffDashboard(self, self.current_user, self.logout)
+        elif self.current_user.role == "Receptionist":
+            ReceptionistDashboard(self, self.current_user, self.logout)
 
     def logout(self):
         self.current_user = None

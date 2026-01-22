@@ -5,20 +5,21 @@ CREATE TABLE IF NOT EXISTS Users (
     password_hash VARCHAR(255) NOT NULL,
     first_name VARCHAR(50),
     last_name VARCHAR(50),
-    role ENUM('Receptionist', 'Member', 'Worker') NOT NULL,
+    role ENUM('Admin', 'Receptionist', 'Member') NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Vehicles Table
 CREATE TABLE IF NOT EXISTS Vehicles (
     vehicle_id INT AUTO_INCREMENT PRIMARY KEY,
-    make VARCHAR(50) NOT NULL,
+    brand VARCHAR(50) NOT NULL,
     model VARCHAR(50) NOT NULL,
     year INT NOT NULL,
     license_plate VARCHAR(20) NOT NULL UNIQUE,
     type ENUM('Car', 'Truck', 'SUV', 'Van', 'Motorcycle') NOT NULL,
     status ENUM('Available', 'Rented', 'Maintenance') DEFAULT 'Available',
     daily_rate DECIMAL(10, 2) NOT NULL,
+    image VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -36,7 +37,7 @@ CREATE TABLE IF NOT EXISTS Reservations (
     vehicle_id INT NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
-    status ENUM('Pending', 'Active', 'Completed', 'Cancelled') DEFAULT 'Pending',
+    status ENUM('Pending', 'Active', 'Completed', 'Cancelled', 'Rejected') DEFAULT 'Pending',
     insurance_added BOOLEAN DEFAULT FALSE,
     total_cost DECIMAL(10, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -30,11 +30,7 @@ class User(ABC):
 
 class Receptionist(User):
     def get_permissions(self):
-        return ["manage_vehicles", "manage_users", "view_all_reservations"]
-
-class Worker(User):
-    def get_permissions(self):
-        return ["update_logs", "view_returns"]
+        return ["manage_vehicles", "manage_users", "view_all_reservations", "update_logs", "view_returns"]
 
 class Member(User):
     def get_permissions(self):
