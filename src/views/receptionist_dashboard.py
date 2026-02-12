@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+import tkinter.font as tkfont
 from src.controllers.rental_controller import RentalController
 from src.utils.image_helper import ImageHelper
 from src.utils.gui_helpers import RoundedFrame, RoundedButton, ScrollableFrame
@@ -13,6 +14,8 @@ class ReceptionistDashboard(tk.Frame):
         self.user = user
         self.logout_callback = logout_callback
         self.rental_controller = RentalController()
+        self.current_view = "returns"
+        self.current_items = []
         self.pack(fill="both", expand=True)
         
         self.create_layout()
@@ -30,403 +33,911 @@ class ReceptionistDashboard(tk.Frame):
         user_info.pack(side="right", padx=20)
         
         tk.Label(user_info, text=f"User: {self.user.full_name}", bg="#2c3e50", fg="#ecf0f1", font=("Segoe UI", 12)).pack(side="left", padx=10)
-        RoundedButton(user_info, width=80, height=30, corner_radius=10, bg_color="#e74c3c", fg_color="white", text="Logout", command=self.logout_callback).pack(side="left")
+        RoundedButton(user_info, width=130, height=30, corner_radius=10, bg_color="#e74c3c", fg_color="white", text="Logout", command=self.logout_callback, image_path=os.path.join(os.path.dirname(__file__), "..", "img", "icons", "logout.png"), icon_size=(16, 16), font=("Segoe UI", 9, "bold")).pack(side="left")
 
         # Main Container
         self.main_container = tk.Frame(self)
         self.main_container.pack(side="top", fill="both", expand=True)
 
-        # Side Bar
-        self.side_bar = tk.Frame(self.main_container, bg="#34495e", width=200)
+        # 1. Left Sidebar
+        self.side_bar = tk.Frame(self.main_container, bg="#34495e", width=280)
         self.side_bar.pack(side="left", fill="y")
         self.side_bar.pack_propagate(False)
 
-        self.create_sidebar_button("Process Returns", self.show_returns_view)
-        self.create_sidebar_button("Approve Rentals", self.show_approvals_view)
-        self.create_sidebar_button("Manage Fleet", self.show_fleet_view)
+        self.sidebar_content = tk.Frame(self.side_bar, bg="#34495e")
+        self.sidebar_content.pack(fill="both", expand=True)
 
-        # Content Area
-        self.content_area = tk.Frame(self.main_container, bg="white")
-        self.content_area.pack(side="left", fill="both", expand=True, padx=20, pady=20)
+        tk.Frame(self.sidebar_content, bg="#34495e", height=70).pack(fill="x")
 
-    def create_sidebar_button(self, text, command):
-        btn = RoundedButton(self.side_bar, width=180, height=40, corner_radius=10, bg_color="#34495e", fg_color="white", text=text, command=command)
+        self.sidebar_center = tk.Frame(self.sidebar_content, bg="#34495e")
+        self.sidebar_center.pack(fill="x")
+
+        sidebar_header = tk.Frame(self.sidebar_center, bg="#34495e")
+        sidebar_header.pack(fill="x", pady=(0, 14))
+
+        logo_img = ImageHelper.load_image(os.path.join(os.path.dirname(__file__), "..", "img", "icons", "logo.png"), (72, 72))
+        if logo_img:
+            logo_label = tk.Label(sidebar_header, image=logo_img, bg="#34495e")
+            logo_label.image = logo_img
+            logo_label.pack(pady=(0, 8))
+
+        tk.Label(
+            sidebar_header,
+            text="Vehicle Rental System",
+            bg="#34495e",
+            fg="#ecf0f1",
+            font=("Segoe UI", 12, "bold")
+        ).pack()
+
+        self.sidebar_menu = tk.Frame(self.sidebar_center, bg="#34495e")
+        self.sidebar_menu.pack()
+
+        tk.Frame(self.sidebar_content, bg="#34495e").pack(fill="both", expand=True)
+
+        self.create_sidebar_button("Process Returns", "return.png", self.show_returns_view)
+        self.create_sidebar_button("Approve Requests", "list.png", self.show_approvals_view)
+        self.create_sidebar_button("Manage Fleet", "car.png", self.show_fleet_view)
+        self.create_sidebar_button("Vehicle History", "history.png", self.show_history_view)
+
+        # 2. Middle List Pane (wider to avoid cramped controls)
+        self.list_pane = tk.Frame(self.main_container, bg="#f8f9fa", width=760)
+        self.list_pane.pack(side="left", fill="both", expand=True)
+        self.list_pane.pack_propagate(False)
+        
+        # Header for List Pane
+        self.list_header = tk.Label(self.list_pane, text="Select Item", bg="#f8f9fa", font=("Segoe UI", 14, "bold"), anchor="w", padx=20, pady=12)
+        self.list_header.pack(fill="x")
+
+        self.summary_bar = tk.Frame(self.list_pane, bg="#f8f9fa")
+        self.summary_bar.pack(fill="x", padx=10, pady=(0, 8))
+
+        self.controls_bar = tk.Frame(self.list_pane, bg="#f8f9fa")
+        self.controls_bar.pack(fill="x", padx=10, pady=(0, 8))
+
+        self.search_var = tk.StringVar()
+        self.filter_var = tk.StringVar(value="All")
+
+        tk.Label(self.controls_bar, text="Search", bg="#f8f9fa", fg="#2c3e50", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 5))
+        self.search_entry = tk.Entry(self.controls_bar, textvariable=self.search_var, font=("Segoe UI", 10), width=20)
+        self.search_entry.pack(side="left", padx=(0, 6), ipady=4)
+
+        RoundedButton(
+            self.controls_bar,
+            width=114,
+            height=36,
+            corner_radius=10,
+            bg_color="#1f618d",
+            fg_color="white",
+            text="Search",
+            command=self.apply_list_filters,
+            image_path=os.path.join(os.path.dirname(__file__), "..", "img", "icons", "search.png"),
+            icon_size=(16, 16),
+            font=("Segoe UI", 9, "bold"),
+            text_align="center"
+        ).pack(side="left", padx=(0, 8))
+
+        tk.Label(self.controls_bar, text="Filter", bg="#f8f9fa", fg="#2c3e50", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 5))
+        self.filter_combo = ttk.Combobox(self.controls_bar, textvariable=self.filter_var, values=["All"], state="readonly", width=16)
+        self.filter_combo.pack(side="left", padx=(0, 6))
+
+        RoundedButton(
+            self.controls_bar,
+            width=106,
+            height=36,
+            corner_radius=10,
+            bg_color="#2980b9",
+            fg_color="white",
+            text="Apply",
+            command=self.apply_list_filters,
+            image_path=os.path.join(os.path.dirname(__file__), "..", "img", "icons", "apply_filter.png"),
+            icon_size=(16, 16),
+            font=("Segoe UI", 9, "bold"),
+            text_align="center"
+        ).pack(side="left", padx=(0, 6))
+
+        RoundedButton(
+            self.controls_bar,
+            width=106,
+            height=36,
+            corner_radius=10,
+            bg_color="#7f8c8d",
+            fg_color="white",
+            text="Reset",
+            command=self.reset_list_filters,
+            image_path=os.path.join(os.path.dirname(__file__), "..", "img", "icons", "reset.png"),
+            icon_size=(16, 16),
+            font=("Segoe UI", 9, "bold"),
+            text_align="center"
+        ).pack(side="left", padx=(0, 6))
+
+        RoundedButton(
+            self.controls_bar,
+            width=114,
+            height=36,
+            corner_radius=10,
+            bg_color="#16a085",
+            fg_color="white",
+            text="Refresh",
+            command=self.refresh_current_view,
+            image_path=os.path.join(os.path.dirname(__file__), "..", "img", "icons", "analytics.png"),
+            icon_size=(16, 16),
+            font=("Segoe UI", 9, "bold"),
+            text_align="center"
+        ).pack(side="left")
+
+        self.extra_action_holder = tk.Frame(self.controls_bar, bg="#f8f9fa")
+        self.extra_action_holder.pack(side="right")
+        
+        self.list_scroll = ScrollableFrame(self.list_pane, bg="#f8f9fa")
+        self.list_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # 3. Right Detail Pane (narrower so center pane has more room)
+        self.detail_pane = tk.Frame(self.main_container, bg="white", width=520)
+        self.detail_pane.pack(side="left", fill="y")
+        self.detail_pane.pack_propagate(False)
+        
+        # Container inside detail pane so we can clear it easily
+        self.detail_container = tk.Frame(self.detail_pane, bg="white")
+        self.detail_container.pack(fill="both", expand=True, padx=24, pady=24)
+
+        self.show_placeholder_detail()
+
+    def create_sidebar_button(self, text, icon_name, command):
+        # Fix path: go up from src/views/ to src/img/icons
+        icon_path = os.path.join(os.path.dirname(__file__), "..", "img", "icons", icon_name)
+        
+        btn = RoundedButton(self.sidebar_menu, width=260, height=50, corner_radius=10, bg_color="#34495e", fg_color="white", text=text, command=command, image_path=icon_path)
         btn.pack(pady=5)
 
-    def clear_content(self):
-        for widget in self.content_area.winfo_children():
+    def clear_list(self):
+        for widget in self.list_scroll.scrollable_frame.winfo_children():
             widget.destroy()
+
+    def update_summary_cards(self):
+        for widget in self.summary_bar.winfo_children():
+            widget.destroy()
+
+        stats = self.rental_controller.get_receptionist_dashboard_stats()
+        cards = [
+            ("Active Rentals", str(stats['active_rentals']), "#3498db", "active_rentals.png"),
+            ("Pending Requests", str(stats['pending_requests']), "#f39c12", "list.png"),
+            ("Available Fleet", str(stats['available_vehicles']), "#27ae60", "car.png"),
+            ("Due Today", str(stats['due_today']), "#e67e22", "return.png")
+        ]
+
+        for idx, (title, value, color, icon) in enumerate(cards):
+            card = RoundedFrame(self.summary_bar, height=74, corner_radius=10, bg_color="white")
+            card.grid(row=0, column=idx, padx=4, sticky="nsew")
+            self.summary_bar.grid_columnconfigure(idx, weight=1)
+
+            row = tk.Frame(card.inner_frame, bg="white")
+            row.pack(fill="both", expand=True, padx=8, pady=6)
+            icon_img = ImageHelper.load_image(os.path.join(os.path.dirname(__file__), "..", "img", "icons", icon), (18, 18))
+            if icon_img:
+                lbl = tk.Label(row, image=icon_img, bg="white")
+                lbl.image = icon_img
+                lbl.pack(side="left", padx=(0, 6))
+
+            text_col = tk.Frame(row, bg="white")
+            text_col.pack(side="left", fill="both", expand=True)
+            tk.Label(text_col, text=title, bg="white", fg="#7f8c8d", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+            tk.Label(text_col, text=value, bg="white", fg=color, font=("Segoe UI", 14, "bold")).pack(anchor="w")
+
+    def get_vehicle_status_style(self, status):
+        palette = {
+            'Available': {'bg': '#eafaf1', 'fg': '#1e8449', 'card': '#ffffff'},
+            'Rented': {'bg': '#fdecea', 'fg': '#c0392b', 'card': '#fffdfd'},
+            'Maintenance': {'bg': '#f4ecf7', 'fg': '#7d3c98', 'card': '#fdfbff'}
+        }
+        return palette.get(status, {'bg': '#ecf0f1', 'fg': '#2c3e50', 'card': '#ffffff'})
+
+    def get_reservation_status_style(self, status):
+        palette = {
+            'Active': {'bg': '#eaf4ff', 'fg': '#1b4f72', 'card': '#ffffff'},
+            'Pending': {'bg': '#fff4db', 'fg': '#7d6608', 'card': '#ffffff'},
+            'Completed': {'bg': '#eafaf1', 'fg': '#145a32', 'card': '#ffffff'},
+            'Cancelled': {'bg': '#fdecea', 'fg': '#922b21', 'card': '#fffdfd'},
+            'Rejected': {'bg': '#f0f3f4', 'fg': '#2e4053', 'card': '#ffffff'}
+        }
+        return palette.get(status, {'bg': '#ecf0f1', 'fg': '#2c3e50', 'card': '#ffffff'})
+
+    def bind_click_recursive(self, widget, callback):
+        widget.bind("<Button-1>", callback)
+        for child in widget.winfo_children():
+            self.bind_click_recursive(child, callback)
+
+    def _prompt_reason_dialog(self, title, prompt_text):
+        dialog = tk.Toplevel(self)
+        dialog.title(title)
+        dialog.configure(bg="white")
+        dialog.transient(self.winfo_toplevel())
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        w, h = 460, 300
+        px = self.winfo_rootx() + max((self.winfo_width() - w) // 2, 0)
+        py = self.winfo_rooty() + max((self.winfo_height() - h) // 2, 0)
+        dialog.geometry(f"{w}x{h}+{px}+{py}")
+
+        tk.Label(dialog, text=title, bg="white", fg="#2c3e50", font=("Segoe UI", 14, "bold")).pack(anchor="w", padx=18, pady=(16, 6))
+        tk.Label(dialog, text=prompt_text, bg="white", fg="#5d6d7e", font=("Segoe UI", 10), wraplength=420, justify="left").pack(anchor="w", padx=18, pady=(0, 10))
+
+        text_box = tk.Text(dialog, height=7, width=52, font=("Segoe UI", 10), bd=1, relief="solid")
+        text_box.pack(padx=18, pady=(0, 14), fill="x")
+        text_box.focus_set()
+
+        result = {"value": None}
+
+        def submit():
+            reason = text_box.get("1.0", "end").strip()
+            if not reason:
+                messagebox.showwarning("Notice", "Reason is required", parent=dialog)
+                return
+            result["value"] = reason
+            dialog.destroy()
+
+        def cancel():
+            dialog.destroy()
+
+        buttons = tk.Frame(dialog, bg="white")
+        buttons.pack(fill="x", padx=18, pady=(0, 16))
+        RoundedButton(buttons, width=106, height=36, corner_radius=10, bg_color="#7f8c8d", fg_color="white", text="Cancel", command=cancel, font=("Segoe UI", 9, "bold"), text_align="center").pack(side="right")
+        RoundedButton(buttons, width=134, height=36, corner_radius=10, bg_color="#1f618d", fg_color="white", text="Submit Reason", command=submit, font=("Segoe UI", 9, "bold"), text_align="center").pack(side="right", padx=(0, 8))
+
+        dialog.bind("<Escape>", lambda e: cancel())
+        dialog.bind("<Return>", lambda e: submit())
+        self.wait_window(dialog)
+        return result["value"]
+
+    def create_vehicle_rich_list_item(self, vehicle, click_callback):
+        style = self.get_vehicle_status_style(vehicle.get('status', 'Available'))
+        frame = RoundedFrame(self.list_scroll.scrollable_frame, width=700, height=146, corner_radius=12, bg_color=style['card'])
+        frame.pack(pady=6)
+
+        row = tk.Frame(frame.inner_frame, bg=style['card'])
+        row.pack(fill="both", expand=True, padx=12, pady=10)
+
+        img_path = self.get_image_path(vehicle)
+        img = ImageHelper.load_image(img_path, size=(132, 88))
+        if img:
+            lbl = tk.Label(row, image=img, bg=style['card'])
+            lbl.image = img
+            lbl.pack(side="left", padx=(0, 12))
+
+        body = tk.Frame(row, bg=style['card'])
+        body.pack(side="left", fill="both", expand=True)
+
+        top = tk.Frame(body, bg=style['card'])
+        top.pack(fill="x")
+        tk.Label(top, text=f"{vehicle['brand']} {vehicle['model']}", font=("Segoe UI", 13, "bold"), bg=style['card'], fg="#2c3e50").pack(side="left")
+        tk.Label(top, text=vehicle.get('status', 'Unknown'), bg=style['bg'], fg=style['fg'], font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="right")
+
+        tk.Label(body, text=f"Plate: {vehicle['license_plate']}  •  Type: {vehicle['type']}  •  Year: {vehicle['year']}", font=("Segoe UI", 10), bg=style['card'], fg="#5d6d7e").pack(anchor="w", pady=(5, 4))
+
+        bottom = tk.Frame(body, bg=style['card'])
+        bottom.pack(fill="x", pady=(4, 0))
+        tk.Label(bottom, text=f"₱{float(vehicle['daily_rate']):,.0f} / day", bg="#d6eaf8", fg="#1b4f72", font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="left")
+        tk.Label(bottom, text=f"ID #{vehicle['vehicle_id']}", bg="#f2f3f4", fg="#566573", font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="left", padx=(8, 0))
+
+        self.bind_click_recursive(frame, click_callback)
+
+    def configure_controls_for_view(self):
+        for widget in self.extra_action_holder.winfo_children():
+            widget.destroy()
+
+        if self.current_view == "returns":
+            self.filter_combo.configure(values=["All", "Due Today", "Due Tomorrow", "Overdue"])
+            self.filter_var.set("All")
+        elif self.current_view == "approvals":
+            self.filter_combo.configure(values=["All", "Car", "Truck", "SUV", "Van", "Motorcycle"])
+            self.filter_var.set("All")
+        elif self.current_view == "fleet":
+            self.filter_combo.configure(values=["All", "Available", "Rented", "Maintenance"])
+            self.filter_var.set("All")
+            RoundedButton(
+                self.extra_action_holder,
+                width=140,
+                height=30,
+                corner_radius=10,
+                bg_color="#27ae60",
+                fg_color="white",
+                text="Add Vehicle",
+                command=self.show_add_vehicle_form,
+                image_path=os.path.join(os.path.dirname(__file__), "..", "img", "icons", "add.png"),
+                icon_size=(14, 14),
+                font=("Segoe UI", 8, "bold")
+            ).pack(side="right")
+        else:
+            self.filter_combo.configure(values=["All", "Available", "Rented", "Maintenance"])
+            self.filter_var.set("All")
+
+    def refresh_current_view(self):
+        if self.current_view == "returns":
+            self.show_returns_view()
+        elif self.current_view == "approvals":
+            self.show_approvals_view()
+        elif self.current_view == "fleet":
+            self.show_fleet_view()
+        else:
+            self.show_history_view()
+
+    def reset_list_filters(self):
+        self.search_var.set("")
+        self.filter_var.set("All")
+        self.apply_list_filters()
+
+    def apply_list_filters(self):
+        search_text = self.search_var.get().strip().lower()
+        selected_filter = self.filter_var.get()
+        filtered = list(self.current_items)
+
+        if search_text:
+            if self.current_view == "returns":
+                filtered = [
+                    item for item in filtered
+                    if search_text in str(item['username']).lower()
+                    or search_text in str(item['brand']).lower()
+                    or search_text in str(item['model']).lower()
+                    or search_text in str(item['license_plate']).lower()
+                ]
+            elif self.current_view == "approvals":
+                filtered = [
+                    item for item in filtered
+                    if search_text in str(item['username']).lower()
+                    or search_text in str(item['brand']).lower()
+                    or search_text in str(item['model']).lower()
+                ]
+            else:
+                filtered = [
+                    item for item in filtered
+                    if search_text in str(item['brand']).lower()
+                    or search_text in str(item['model']).lower()
+                    or search_text in str(item['license_plate']).lower()
+                ]
+
+        if selected_filter != "All":
+            if self.current_view == "returns":
+                from datetime import date, timedelta
+                today = date.today()
+                tomorrow = today + timedelta(days=1)
+
+                def matches_due(item):
+                    due = item['end_date']
+                    if hasattr(due, 'date'):
+                        due = due.date()
+                    if selected_filter == "Due Today":
+                        return due == today
+                    if selected_filter == "Due Tomorrow":
+                        return due == tomorrow
+                    if selected_filter == "Overdue":
+                        return due < today
+                    return True
+
+                filtered = [item for item in filtered if matches_due(item)]
+            elif self.current_view == "approvals":
+                filtered = [item for item in filtered if item.get('type') == selected_filter]
+            elif self.current_view == "fleet":
+                filtered = [item for item in filtered if item.get('status') == selected_filter]
+            else:
+                filtered = [item for item in filtered if item.get('status') == selected_filter]
+
+        self.render_list_items(filtered)
+
+    def render_list_items(self, items):
+        self.clear_list()
+        for item in items:
+            if self.current_view == "returns":
+                self.create_rental_list_item(item)
+            elif self.current_view == "approvals":
+                self.create_approval_list_item(item)
+            elif self.current_view == "fleet":
+                self.create_fleet_list_item(item)
+            else:
+                self.create_vehicle_history_list_item(item)
+        self.update_list_scroll()
+
+    def update_list_scroll(self):
+        self.list_scroll.scrollable_frame.update_idletasks()
+        self.list_scroll.canvas.configure(scrollregion=self.list_scroll.canvas.bbox("all"))
+        self.list_scroll.canvas.yview_moveto(0)
+
+    def clear_detail(self):
+        for widget in self.detail_container.winfo_children():
+            widget.destroy()
+
+    def show_placeholder_detail(self):
+        self.clear_detail()
+        tk.Label(self.detail_container, text="Select an item from the list to view details", 
+                font=("Segoe UI", 14), fg="#bdc3c7", bg="white").pack(expand=True)
+
+    # --- View Switchers ---
 
     def show_returns_view(self):
-        self.clear_content()
-        tk.Label(self.content_area, text="Process Returns", font=("Segoe UI", 20, "bold"), bg="white").pack(anchor="w", pady=(0, 20))
-        
-        self.returns_frame = tk.Frame(self.content_area, bg="white")
-        self.returns_frame.pack(fill="both", expand=True)
-        self.setup_returns_view()
+        self.current_view = "returns"
+        self.list_header.config(text="Active Rentals")
+        self.show_placeholder_detail()
+
+        self.update_summary_cards()
+        self.configure_controls_for_view()
+        self.current_items = self.rental_controller.get_all_active_rentals()
+        self.reset_list_filters()
 
     def show_approvals_view(self):
-        self.clear_content()
-        tk.Label(self.content_area, text="Approve Rental Requests", font=("Segoe UI", 20, "bold"), bg="white").pack(anchor="w", pady=(0, 20))
-        
-        self.approvals_frame = tk.Frame(self.content_area, bg="white")
-        self.approvals_frame.pack(fill="both", expand=True)
-        self.setup_approvals_view()
+        self.current_view = "approvals"
+        self.list_header.config(text="Pending Requests")
+        self.show_placeholder_detail()
+
+        self.update_summary_cards()
+        self.configure_controls_for_view()
+        self.current_items = self.rental_controller.get_pending_reservations()
+        self.reset_list_filters()
 
     def show_fleet_view(self):
-        self.clear_content()
-        tk.Label(self.content_area, text="Manage Fleet", font=("Segoe UI", 20, "bold"), bg="white").pack(anchor="w", pady=(0, 20))
-        
-        self.fleet_frame = tk.Frame(self.content_area, bg="white")
-        self.fleet_frame.pack(fill="both", expand=True)
-        self.setup_fleet_view()
+        self.current_view = "fleet"
+        self.list_header.config(text="Vehicle Fleet")
+        self.show_placeholder_detail()
 
-    def setup_returns_view(self):
-        self.ret_scroll = ScrollableFrame(self.returns_frame)
-        self.ret_scroll.pack(fill="both", expand=True, padx=10)
-        self.load_rentals()
+        self.update_summary_cards()
+        self.configure_controls_for_view()
+        self.current_items = self.rental_controller.get_all_vehicles()
+        self.reset_list_filters()
 
-    def setup_approvals_view(self):
-        self.approvals_scroll = ScrollableFrame(self.approvals_frame)
-        self.approvals_scroll.pack(fill="both", expand=True, padx=10)
-        self.load_pending_reservations()
+    # --- List Items Creation ---
 
-    def load_rentals(self):
-        for widget in self.ret_scroll.scrollable_frame.winfo_children():
-            widget.destroy()
-        
-        rentals = self.rental_controller.get_all_active_rentals()
-        
-        columns = 3
-        row = 0
-        col = 0
+    def create_rental_list_item(self, rental):
+        style = self.get_reservation_status_style(rental.get('status', 'Active'))
+        frame = RoundedFrame(self.list_scroll.scrollable_frame, width=700, height=146, corner_radius=12, bg_color=style['card'])
+        frame.pack(pady=6)
 
-        for r in rentals:
-            self.create_rental_card(r, row, col)
-            col += 1
-            if col >= columns:
-                col = 0
-                row += 1
+        row = tk.Frame(frame.inner_frame, bg=style['card'])
+        row.pack(fill="both", expand=True, padx=12, pady=10)
 
-    def load_pending_reservations(self):
-        for widget in self.approvals_scroll.scrollable_frame.winfo_children():
-            widget.destroy()
-        
-        pending = self.rental_controller.get_pending_reservations()
-        
-        columns = 3
-        row = 0
-        col = 0
-
-        for p in pending:
-            self.create_approval_card(p, row, col)
-            col += 1
-            if col >= columns:
-                col = 0
-                row += 1
-
-    def create_rental_card(self, rental, row, col):
-        card = RoundedFrame(self.ret_scroll.scrollable_frame, width=280, height=220, corner_radius=15, bg_color="#f8f9fa")
-        card.grid(row=row, column=col, padx=10, pady=10)
-
-        # Image
         img_path = self.get_image_path(rental)
-        img = ImageHelper.load_resized_image(img_path, size=(150, 100))
+        img = ImageHelper.load_image(img_path, size=(132, 88))
         if img:
-            lbl = tk.Label(card.inner_frame, image=img, bg="#f8f9fa")
+            lbl = tk.Label(row, image=img, bg=style['card'])
             lbl.image = img
-            lbl.pack(pady=5)
+            lbl.pack(side="left", padx=(0, 12))
 
-        tk.Label(card.inner_frame, text=f"{rental['brand']} {rental['model']}", font=("Segoe UI", 11, "bold"), bg="#f8f9fa").pack()
-        tk.Label(card.inner_frame, text=f"Rented by: {rental['username']}", font=("Segoe UI", 9), bg="#f8f9fa").pack()
-        tk.Label(card.inner_frame, text=f"Due: {rental['end_date']}", font=("Segoe UI", 9, "bold"), fg="#e74c3c", bg="#f8f9fa").pack()
+        body = tk.Frame(row, bg=style['card'])
+        body.pack(side="left", fill="both", expand=True)
 
-        # Click
-        card.bind("<Button-1>", lambda e, r=rental: self.show_return_popup(r))
-        card.inner_frame.bind("<Button-1>", lambda e, r=rental: self.show_return_popup(r))
-        for child in card.inner_frame.winfo_children():
-            child.bind("<Button-1>", lambda e, r=rental: self.show_return_popup(r))
+        top = tk.Frame(body, bg=style['card'])
+        top.pack(fill="x")
+        tk.Label(top, text=f"{rental['brand']} {rental['model']}", font=("Segoe UI", 13, "bold"), bg=style['card'], fg="#2c3e50").pack(side="left")
+        tk.Label(top, text=rental.get('status', 'Active'), bg=style['bg'], fg=style['fg'], font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="right")
 
-    def show_return_popup(self, rental):
-        popup = tk.Toplevel(self)
-        popup.title(f"Return Vehicle - {rental['brand']} {rental['model']}")
-        popup.geometry("400x500")
-        popup.configure(bg="white")
-        popup.grab_set()
+        tk.Label(body, text=f"Customer: {rental['username']}  •  Plate: {rental['license_plate']}", font=("Segoe UI", 10), bg=style['card'], fg="#5d6d7e").pack(anchor="w", pady=(5, 4))
 
-        tk.Label(popup, text="Process Return", font=("Segoe UI", 16, "bold"), bg="white").pack(pady=10)
+        bottom = tk.Frame(body, bg=style['card'])
+        bottom.pack(fill="x", pady=(4, 0))
+        tk.Label(bottom, text=f"Due: {rental['end_date']}", bg="#fadbd8", fg="#922b21", font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="left")
+        tk.Label(bottom, text=f"Total: ₱{float(rental['total_cost']):,.0f}", bg="#d6eaf8", fg="#1b4f72", font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="left", padx=(8, 0))
+
+        def on_click(e):
+            self.show_return_details(rental)
+
+        self.bind_click_recursive(frame, on_click)
+
+    def create_approval_list_item(self, reservation):
+        style = self.get_reservation_status_style(reservation.get('status', 'Pending'))
+        frame = RoundedFrame(self.list_scroll.scrollable_frame, width=700, height=146, corner_radius=12, bg_color=style['card'])
+        frame.pack(pady=6)
+
+        row = tk.Frame(frame.inner_frame, bg=style['card'])
+        row.pack(fill="both", expand=True, padx=12, pady=10)
+
+        img_path = self.get_image_path(reservation)
+        img = ImageHelper.load_image(img_path, size=(132, 88))
+        if img:
+            lbl = tk.Label(row, image=img, bg=style['card'])
+            lbl.image = img
+            lbl.pack(side="left", padx=(0, 12))
+
+        body = tk.Frame(row, bg=style['card'])
+        body.pack(side="left", fill="both", expand=True)
+
+        top = tk.Frame(body, bg=style['card'])
+        top.pack(fill="x")
+        tk.Label(top, text=f"{reservation['brand']} {reservation['model']}", font=("Segoe UI", 13, "bold"), bg=style['card'], fg="#2c3e50").pack(side="left")
+        tk.Label(top, text=reservation.get('status', 'Pending'), bg=style['bg'], fg=style['fg'], font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="right")
+
+        tk.Label(body, text=f"Customer: {reservation['username']}  •  Dates: {reservation['start_date']} to {reservation['end_date']}", font=("Segoe UI", 10), bg=style['card'], fg="#5d6d7e").pack(anchor="w", pady=(5, 4))
+
+        bottom = tk.Frame(body, bg=style['card'])
+        bottom.pack(fill="x", pady=(4, 0))
+        tk.Label(bottom, text=f"Total: ₱{float(reservation['total_cost']):,.0f}", bg="#d1f2eb", fg="#117864", font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="left")
+        insurance_text = "Insurance: Yes" if reservation.get('insurance_added') else "Insurance: No"
+        insurance_bg = "#d6eaf8" if reservation.get('insurance_added') else "#f2f3f4"
+        insurance_fg = "#1b4f72" if reservation.get('insurance_added') else "#566573"
+        tk.Label(bottom, text=insurance_text, bg=insurance_bg, fg=insurance_fg, font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="left", padx=(8, 0))
+
+        def on_click(e):
+            self.show_approval_details(reservation)
+
+        self.bind_click_recursive(frame, on_click)
+
+    def create_fleet_list_item(self, vehicle):
+        def on_click(e): self.show_fleet_details(vehicle)
+        self.create_vehicle_rich_list_item(vehicle, on_click)
+
+    # --- Detail Views ---
+
+    def show_return_details(self, rental):
+        self.clear_detail()
+        detail_scroll = ScrollableFrame(self.detail_container, bg="white")
+        detail_scroll.pack(fill="both", expand=True)
+        body = detail_scroll.scrollable_frame
+        body.configure(bg="white")
+
+        tk.Label(body, text="Return Vehicle", font=("Segoe UI", 24, "bold"), bg="white").pack(anchor="w", pady=(0, 20))
+
+        img_path = self.get_image_path(rental)
+        img = ImageHelper.load_image(img_path, size=(320, 210))
+        if img:
+            lbl = tk.Label(body, image=img, bg="white")
+            lbl.image = img
+            lbl.pack(anchor="w", pady=(0, 14))
+
+        info_card = RoundedFrame(body, corner_radius=12, bg_color="#f8f9fa")
+        info_card.pack(fill="x", pady=(0, 14))
+
+        labels = [
+            ("Reservation ID", rental['reservation_id']),
+            ("Customer", rental['username']),
+            ("Vehicle", f"{rental['brand']} {rental['model']}"),
+            ("License Plate", rental['license_plate']),
+            ("Due Date", rental['end_date'])
+        ]
+
+        for label, value in labels:
+            row = tk.Frame(info_card.inner_frame, bg="#f8f9fa")
+            row.pack(fill="x", pady=4)
+            tk.Label(row, text=f"{label}:", font=("Segoe UI", 10, "bold"), bg="#f8f9fa", fg="#2c3e50").pack(side="left")
+            tk.Label(row, text=str(value), font=("Segoe UI", 10), bg="#f8f9fa", fg="#34495e").pack(side="left", padx=(8, 0))
+
+        tk.Label(body, text="Return Processing", font=("Segoe UI", 14, "bold"), bg="white").pack(anchor="w", pady=(10, 10))
+
+        tk.Label(body, text="Condition Notes:", bg="white", font=("Segoe UI", 10)).pack(anchor="w")
+        notes_entry = tk.Entry(body, font=("Segoe UI", 11), width=50)
+        notes_entry.pack(anchor="w", pady=5)
         
-        info = f"""
-        Reservation ID: {rental['reservation_id']}
-        Customer: {rental['username']}
-        Vehicle: {rental['brand']} {rental['model']}
-        Due Date: {rental['end_date']}
-        """
-        tk.Label(popup, text=info, justify="left", bg="white", font=("Segoe UI", 10)).pack(pady=10)
-
-        tk.Label(popup, text="Condition Notes:", bg="white", font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=20)
-        notes_entry = tk.Entry(popup, width=40)
-        notes_entry.pack(padx=20, pady=5)
-
         def confirm():
             notes = notes_entry.get() or "Standard return"
-            try:
-                self.rental_controller.return_vehicle(rental['reservation_id'], rental['vehicle_id'], notes, self.user.user_id)
+            if self.rental_controller.return_vehicle(rental['reservation_id'], rental['vehicle_id'], notes, self.user.user_id):
                 messagebox.showinfo("Success", "Vehicle returned successfully")
-                popup.destroy()
-                self.load_rentals()
-            except Exception as e:
-                messagebox.showerror("Error", str(e))
+                self.show_returns_view()
+            else:
+                messagebox.showerror("Error", "Failed to return vehicle")
 
-        tk.Button(popup, text="Confirm Return", command=confirm, bg="#f39c12", fg="white", font=("Segoe UI", 12, "bold"), relief="flat", pady=10).pack(fill="x", padx=20, pady=20)
+        def cancel_active_reservation():
+            if not messagebox.askyesno("Confirm", "Cancel this active reservation?"):
+                return
+            reason = self._prompt_reason_dialog("Cancel Rental", "Please enter the cancellation reason for this active reservation.")
+            if reason is None:
+                return
+            if self.rental_controller.cancel_reservation(rental['reservation_id'], rental['vehicle_id'], reason):
+                messagebox.showinfo("Success", "Reservation cancelled")
+                self.show_returns_view()
+            else:
+                messagebox.showerror("Error", "Unable to cancel reservation")
 
-    def create_approval_card(self, reservation, row, col):
-        card = RoundedFrame(self.approvals_scroll.scrollable_frame, width=280, height=250, corner_radius=15, bg_color="#fff3cd")
-        card.grid(row=row, column=col, padx=10, pady=10)
+        action_row = tk.Frame(body, bg="white")
+        action_row.pack(anchor="w", pady=20)
+        RoundedButton(action_row, width=190, height=45, corner_radius=10,
+                     bg_color="#f39c12", fg_color="white", text="Confirm Return", command=confirm, image_path=os.path.join(os.path.dirname(__file__), "..", "img", "icons", "return.png"), icon_size=(16, 16), font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 10))
+        RoundedButton(action_row, width=190, height=45, corner_radius=10,
+                     bg_color="#e74c3c", fg_color="white", text="Cancel Rental", command=cancel_active_reservation, image_path=os.path.join(os.path.dirname(__file__), "..", "img", "icons", "delete.png"), icon_size=(16, 16), font=("Segoe UI", 9, "bold")).pack(side="left")
 
-        # Image
+
+    def show_approval_details(self, reservation):
+        self.clear_detail()
+        detail_scroll = ScrollableFrame(self.detail_container, bg="white")
+        detail_scroll.pack(fill="both", expand=True)
+        body = detail_scroll.scrollable_frame
+        body.configure(bg="white")
+
+        tk.Label(body, text="Review Rental Request", font=("Segoe UI", 24, "bold"), bg="white").pack(anchor="w", pady=(0, 20))
+
         img_path = self.get_image_path(reservation)
-        img = ImageHelper.load_resized_image(img_path, size=(150, 100))
+        img = ImageHelper.load_image(img_path, size=(320, 210))
         if img:
-            lbl = tk.Label(card.inner_frame, image=img, bg="#fff3cd")
+            lbl = tk.Label(body, image=img, bg="white")
             lbl.image = img
-            lbl.pack(pady=5)
+            lbl.pack(anchor="w", pady=(0, 14))
 
-        tk.Label(card.inner_frame, text=f"{reservation['brand']} {reservation['model']}", font=("Segoe UI", 11, "bold"), bg="#fff3cd").pack()
-        tk.Label(card.inner_frame, text=f"Customer: {reservation['first_name']} {reservation['last_name']}", font=("Segoe UI", 9), bg="#fff3cd").pack()
-        tk.Label(card.inner_frame, text=f"Dates: {reservation['start_date']} - {reservation['end_date']}", font=("Segoe UI", 9), bg="#fff3cd").pack()
-        tk.Label(card.inner_frame, text=f"Total: ₱{reservation['total_cost']}", font=("Segoe UI", 9, "bold"), fg="#27ae60", bg="#fff3cd").pack()
+        info_card = RoundedFrame(body, corner_radius=12, bg_color="#f8f9fa")
+        info_card.pack(fill="x", pady=(0, 14))
 
-        # Action Buttons
-        btn_frame = tk.Frame(card.inner_frame, bg="#fff3cd")
-        btn_frame.pack(pady=10)
+        labels = [
+            ("Vehicle", f"{reservation['brand']} {reservation['model']}"),
+            ("Customer", f"{reservation['first_name']} {reservation['last_name']} ({reservation['username']})"),
+            ("Dates", f"{reservation['start_date']} to {reservation['end_date']}"),
+            ("Total Cost", f"P{reservation['total_cost']}"),
+            ("Insurance", "Yes" if reservation['insurance_added'] else "No"),
+            ("Status", reservation['status'])
+        ]
+
+        for label, value in labels:
+            row = tk.Frame(info_card.inner_frame, bg="#f8f9fa")
+            row.pack(fill="x", pady=4)
+            tk.Label(row, text=f"{label}:", font=("Segoe UI", 10, "bold"), bg="#f8f9fa", fg="#2c3e50").pack(side="left")
+            tk.Label(row, text=str(value), font=("Segoe UI", 10), bg="#f8f9fa", fg="#34495e").pack(side="left", padx=(8, 0))
+
+        tk.Label(body, text="Actions", font=("Segoe UI", 14, "bold"), bg="white").pack(anchor="w", pady=(10, 10))
+
+        btn_frame = tk.Frame(body, bg="white")
+        btn_frame.pack(anchor="w")
         
-        tk.Button(btn_frame, text="Approve", bg="#27ae60", fg="white", font=("Segoe UI", 9, "bold"), relief="flat", padx=15, pady=5,
-                 command=lambda: self.approve_reservation(reservation)).pack(side="left", padx=5)
-        tk.Button(btn_frame, text="Reject", bg="#e74c3c", fg="white", font=("Segoe UI", 9, "bold"), relief="flat", padx=15, pady=5,
-                 command=lambda: self.reject_reservation(reservation)).pack(side="left", padx=5)
+        def approve():
+            if self.rental_controller.approve_reservation(reservation['reservation_id']):
+                messagebox.showinfo("Success", "Rental approved")
+                self.show_approvals_view()
+            else:
+                messagebox.showerror("Error", "Failed to approve")
 
-    def setup_fleet_view(self):
-        # Add Vehicle Button (Opens Popup)
-        RoundedButton(self.fleet_frame, width=200, height=40, corner_radius=10, bg_color="#27ae60", fg_color="white", 
-                      text="+ Add New Vehicle", command=self.show_add_vehicle_popup).pack(fill="x", padx=20, pady=10)
+        def reject():
+            reason = self._prompt_reason_dialog("Reject Request", "Please enter the reason for rejecting this rental request.")
+            if reason is None:
+                return
+            if self.rental_controller.reject_reservation(reservation['reservation_id'], reason):
+                messagebox.showinfo("Success", "Rental rejected")
+                self.show_approvals_view()
+            else:
+                 messagebox.showerror("Error", "Failed to reject")
 
-        self.fleet_scroll = ScrollableFrame(self.fleet_frame)
-        self.fleet_scroll.pack(fill="both", expand=True, padx=10)
-        self.load_fleet()
+        RoundedButton(btn_frame, width=145, height=45, corner_radius=10, bg_color="#27ae60", fg_color="white", text="Approve", command=approve, image_path=os.path.join(os.path.dirname(__file__), "..", "img", "icons", "complete.png"), icon_size=(16, 16), font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 10))
+        RoundedButton(btn_frame, width=145, height=45, corner_radius=10, bg_color="#e74c3c", fg_color="white", text="Reject", command=reject, image_path=os.path.join(os.path.dirname(__file__), "..", "img", "icons", "delete.png"), icon_size=(16, 16), font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 10))
 
-    def load_fleet(self):
-        for widget in self.fleet_scroll.scrollable_frame.winfo_children():
-            widget.destroy()
-        
-        vehicles = self.rental_controller.get_all_vehicles()
-        
-        columns = 3
-        row = 0
-        col = 0
 
-        for v in vehicles:
-            self.create_fleet_card(v, row, col)
-            col += 1
-            if col >= columns:
-                col = 0
-                row += 1
+    def show_fleet_details(self, vehicle):
+        self.clear_detail()
+        self._create_fleet_form(is_edit=True, vehicle=vehicle)
 
-        # Update scroll region
-        self.fleet_scroll.canvas.configure(scrollregion=self.fleet_scroll.canvas.bbox("all"))
+    def show_add_vehicle_form(self):
+        self.clear_detail()
+        self._create_fleet_form(is_edit=False)
 
-    def create_fleet_card(self, vehicle, row, col):
-        card = RoundedFrame(self.fleet_scroll.scrollable_frame, width=280, height=220, corner_radius=15, bg_color="#f8f9fa")
-        card.grid(row=row, column=col, padx=10, pady=10)
+    def _create_fleet_form(self, is_edit, vehicle=None):
+        title = f"Edit {vehicle['brand']} {vehicle['model']}" if is_edit else "Add New Vehicle"
+        tk.Label(self.detail_container, text=title, font=("Segoe UI", 24, "bold"), bg="white").pack(anchor="w", pady=(0, 20))
 
-        # Image
-        img_path = self.get_image_path(vehicle)
-        img = ImageHelper.load_resized_image(img_path, size=(150, 100))
-        if img:
-            lbl = tk.Label(card.inner_frame, image=img, bg="#f8f9fa")
-            lbl.image = img
-            lbl.pack(pady=5)
+        if is_edit and vehicle:
+            img_path = self.get_image_path(vehicle)
+            img = ImageHelper.load_image(img_path, size=(300, 200))
+            if img:
+                lbl = tk.Label(self.detail_container, image=img, bg="white")
+                lbl.image = img
+                lbl.pack(anchor="w", pady=(0, 20))
 
-        tk.Label(card.inner_frame, text=f"{vehicle['brand']} {vehicle['model']}", font=("Segoe UI", 11, "bold"), bg="#f8f9fa").pack()
-        tk.Label(card.inner_frame, text=f"{vehicle['license_plate']}", font=("Segoe UI", 9), bg="#f8f9fa", fg="#7f8c8d").pack()
-        tk.Label(card.inner_frame, text=f"Status: {vehicle['status']}", font=("Segoe UI", 9, "bold"), 
-                 fg="green" if vehicle['status']=='Available' else "red", bg="#f8f9fa").pack(pady=5)
-
-        # Click
-        card.bind("<Button-1>", lambda e, v=vehicle: self.show_edit_vehicle_popup(v))
-        card.inner_frame.bind("<Button-1>", lambda e, v=vehicle: self.show_edit_vehicle_popup(v))
-        for child in card.inner_frame.winfo_children():
-            child.bind("<Button-1>", lambda e, v=vehicle: self.show_edit_vehicle_popup(v))
-
-    def show_add_vehicle_popup(self):
-        popup = tk.Toplevel(self)
-        popup.title("Add New Vehicle")
-        popup.geometry("400x500")
-        popup.configure(bg="white")
-        popup.grab_set()
-
-        self._create_vehicle_form(popup, is_edit=False)
-
-    def show_edit_vehicle_popup(self, vehicle):
-        popup = tk.Toplevel(self)
-        popup.title(f"Edit {vehicle['brand']} {vehicle['model']}")
-        popup.geometry("400x500")
-        popup.configure(bg="white")
-        popup.grab_set()
-
-        self._create_vehicle_form(popup, is_edit=True, vehicle=vehicle)
-
-    def _create_vehicle_form(self, popup, is_edit, vehicle=None):
-        tk.Label(popup, text="Vehicle Details", font=("Segoe UI", 14, "bold"), bg="white").pack(pady=10)
-        
-        form = tk.Frame(popup, bg="white")
-        form.pack(padx=20, pady=10)
+        form = tk.Frame(self.detail_container, bg="white")
+        form.pack(anchor="w", fill="x")
 
         entries = {}
-        fields = ["Brand", "Model", "Year", "License Plate", "Type", "Daily Rate", "Image"]
-        keys = ["brand", "model", "year", "license_plate", "type", "daily_rate", "image"]
+        fields = ["Brand", "Model", "Year", "License Plate", "Type", "Daily Rate"]
+        keys = ["brand", "model", "year", "license_plate", "type", "daily_rate"]
 
         for i, field in enumerate(fields):
-            tk.Label(form, text=f"{field}:", bg="white").grid(row=i, column=0, sticky="e", pady=5)
-            if field == "Type":
-                entry = ttk.Combobox(form, values=["Car", "Truck", "SUV", "Van", "Motorcycle"])
-            elif field == "Image":
-                frame = tk.Frame(form, bg="white")
-                entry = tk.Entry(frame)
-                entry.pack(side="left", fill="x", expand=True)
-                def browse():
-                    file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg *.jpeg *.png")])
-                    if file_path:
-                        entry.delete(0, tk.END)
-                        entry.insert(0, file_path)
-                tk.Button(frame, text="Browse", command=browse).pack(side="right")
-                entry = frame  # Wait, no, entry is the frame, but I need the entry widget.
-                # Better to create entry separately.
-                # Let me adjust.
-                entry = tk.Entry(form)
-                browse_btn = tk.Button(form, text="Browse", command=lambda: self._browse_image(entry))
-                entry.grid(row=i, column=1, sticky="w", padx=10, pady=5)
-                browse_btn.grid(row=i, column=2, sticky="w", pady=5)
-            else:
-                entry = tk.Entry(form)
+            tk.Label(form, text=field, font=("Segoe UI", 10, "bold"), bg="white").grid(row=i, column=0, sticky="w", pady=10)
             
-            if field != "Image":
-                entry.grid(row=i, column=1, sticky="w", padx=10, pady=5)
+            if field == "Type":
+                entry = ttk.Combobox(form, values=["Car", "Truck", "SUV", "Van", "Motorcycle"], width=28)
+            else:
+                entry = tk.Entry(form, font=("Segoe UI", 10), width=30)
+            
+            entry.grid(row=i, column=1, sticky="w", padx=20, pady=10)
             entries[keys[i]] = entry
             
             if is_edit and vehicle:
                 if field == "Type":
                     entry.set(vehicle[keys[i]])
-                elif field == "Image":
-                    pass  # For now, don't set
                 else:
                     entry.insert(0, str(vehicle[keys[i]]))
 
-        def save():
-            data = {k: entries[k].get() if k != "image" else entries[k].get() for k in keys}
-            image_path = entries["image"].get()
-            if not all(data.values()):
-                messagebox.showerror("Error", "All fields are required")
-                return
+        tk.Label(form, text="Image", font=("Segoe UI", 10, "bold"), bg="white").grid(row=len(fields), column=0, sticky="w", pady=10)
+        img_entry_frame = tk.Frame(form, bg="white")
+        img_entry_frame.grid(row=len(fields), column=1, sticky="w", padx=20, pady=10)
+        
+        self.img_path_var = tk.StringVar()
+        tk.Entry(img_entry_frame, textvariable=self.img_path_var, width=20).pack(side="left")
+        tk.Button(img_entry_frame, text="Browse", command=self.browse_image).pack(side="left", padx=5)
 
-            # Handle image
-            image_filename = None
-            if image_path:
+        btn_frame = tk.Frame(self.detail_container, bg="white")
+        btn_frame.pack(anchor="w", pady=30)
+
+        def save():
+            data = {k: entries[k].get() for k in keys}
+            new_image_path = self.img_path_var.get()
+            
+            if not all(data.values()): 
+                 messagebox.showerror("Error", "All text fields are required")
+                 return
+
+            final_image_filename = vehicle['image'] if (is_edit and vehicle) else None
+            
+            if new_image_path:
                 try:
-                    ext = os.path.splitext(image_path)[1]
+                    ext = os.path.splitext(new_image_path)[1]
                     clean_model = data['model'].replace(" ", "").lower()
-                    image_filename = f"{clean_model}{ext}"
-                    dest_path = os.path.join(os.path.dirname(__file__), "..", "img", "vehicles", image_filename)
-                    shutil.copy(image_path, dest_path)
+                    final_image_filename = f"{clean_model}{ext}"
+                    dest_path = os.path.join(os.path.dirname(__file__), "..", "img", "vehicles", final_image_filename)
+                    if not os.path.exists(os.path.dirname(dest_path)):
+                         os.makedirs(os.path.dirname(dest_path))
+                    shutil.copy(new_image_path, dest_path)
                 except Exception as e:
-                    messagebox.showerror("Error", f"Failed to copy image: {str(e)}")
+                    messagebox.showerror("Error", f"Failed to save image: {e}")
                     return
 
             try:
                 if is_edit:
-                    self.rental_controller.update_vehicle(vehicle['vehicle_id'], data['brand'], data['model'], 
-                                                        data['year'], data['license_plate'], data['type'], data['daily_rate'], image_filename)
+                    self.rental_controller.update_vehicle(
+                        vehicle['vehicle_id'], data['brand'], data['model'], data['year'], 
+                        data['license_plate'], data['type'], data['daily_rate'], final_image_filename
+                    )
                     messagebox.showinfo("Success", "Vehicle updated")
                 else:
-                    self.rental_controller.add_vehicle(data['brand'], data['model'], data['year'], 
-                                                     data['license_plate'], data['type'], data['daily_rate'], image_filename)
+                    self.rental_controller.add_vehicle(
+                        data['brand'], data['model'], data['year'], 
+                        data['license_plate'], data['type'], data['daily_rate'], final_image_filename
+                    )
                     messagebox.showinfo("Success", "Vehicle added")
-                popup.destroy()
-                self.load_fleet()
+                self.show_fleet_view()
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
-        tk.Button(popup, text="Save Vehicle", command=save, bg="#27ae60", fg="white", font=("Segoe UI", 10, "bold"), relief="flat", pady=5).pack(fill="x", padx=20, pady=10)
+        RoundedButton(btn_frame, width=132, height=42, corner_radius=10, bg_color="#27ae60", fg_color="white", text="Save Vehicle", command=save, font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 8))
 
         if is_edit:
-            def delete():
-                if vehicle['status'] != 'Available':
-                    messagebox.showerror("Error", "Cannot delete a vehicle that is currently rented or in maintenance.")
+            def toggle_status():
+                if vehicle['status'] == 'Rented':
+                    messagebox.showwarning("Notice", "Cannot toggle maintenance while the vehicle is rented")
                     return
+                new_status = "Maintenance" if vehicle['status'] != 'Maintenance' else "Available"
+                try:
+                    self.rental_controller.set_vehicle_status(vehicle['vehicle_id'], new_status)
+                    messagebox.showinfo("Success", f"Vehicle status set to {new_status}")
+                    self.show_fleet_view()
+                except Exception as e:
+                    messagebox.showerror("Error", str(e))
+
+            RoundedButton(btn_frame, width=160, height=42, corner_radius=10, bg_color="#8e44ad", fg_color="white", text="Toggle Maintenance", command=toggle_status, image_path=os.path.join(os.path.dirname(__file__), "..", "img", "icons", "car.png"), icon_size=(16, 16), font=("Segoe UI", 8, "bold"), text_align="center").pack(side="left", padx=(0, 8))
+
+            def delete():
                 if messagebox.askyesno("Confirm", "Delete this vehicle?"):
                     try:
                         self.rental_controller.delete_vehicle(vehicle['vehicle_id'])
                         messagebox.showinfo("Success", "Vehicle deleted")
-                        popup.destroy()
-                        self.load_fleet()
+                        self.show_fleet_view()
                     except Exception as e:
-                        messagebox.showerror("Error", f"Cannot delete vehicle: {str(e)}")
+                        messagebox.showerror("Error", str(e))
             
-            tk.Button(popup, text="Delete Vehicle", command=delete, bg="#e74c3c", fg="white", font=("Segoe UI", 10, "bold"), relief="flat", pady=5).pack(fill="x", padx=20, pady=(0, 20))
+            RoundedButton(btn_frame, width=132, height=42, corner_radius=10, bg_color="#e74c3c", fg_color="white", text="Delete", command=delete, font=("Segoe UI", 9, "bold")).pack(side="left")
 
-    def _browse_image(self, entry):
+    def browse_image(self):
         file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg *.jpeg *.png")])
         if file_path:
-            entry.delete(0, tk.END)
-            entry.insert(0, file_path)
+            self.img_path_var.set(file_path)
 
-    def get_image_path(self, vehicle):
-        base_path = os.path.join(os.path.dirname(__file__), "..", "img", "vehicles")
-        if vehicle.get('image'):
-            p = os.path.join(base_path, vehicle['image'])
-            if os.path.exists(p):
-                return p
-        # Fallback to old logic
-        model = vehicle['model']
-        clean_model = model.replace(" ", "")
-        candidates = [
-            f"{model}.jpg", f"{model}.png",
-            f"{model.lower()}.jpg", f"{model.lower()}.png",
-            f"{clean_model}.jpg", f"{clean_model}.png",
-            f"{clean_model.lower()}.jpg", f"{clean_model.lower()}.png"
+    def get_image_path(self, vehicle_or_res):
+        return ImageHelper.get_vehicle_image_path(vehicle_or_res.get('model', ''))
+
+    def show_history_view(self):
+        self.current_view = "history"
+        self.list_header.config(text="Select Vehicle")
+        self.show_placeholder_detail()
+
+        self.update_summary_cards()
+        self.configure_controls_for_view()
+        self.current_items = self.rental_controller.get_all_vehicles()
+        self.reset_list_filters()
+
+    def create_vehicle_history_list_item(self, vehicle):
+        def on_click(e): self.show_vehicle_history_details(vehicle)
+        self.create_vehicle_rich_list_item(vehicle, on_click)
+
+    def show_vehicle_history_details(self, vehicle):
+        self.clear_detail()
+        detail_scroll = ScrollableFrame(self.detail_container, bg="white")
+        detail_scroll.pack(fill="both", expand=True)
+        body = detail_scroll.scrollable_frame
+        body.configure(bg="white")
+
+        tk.Label(body, text=f"Vehicle History: {vehicle['brand']} {vehicle['model']}", 
+                font=("Segoe UI", 18, "bold"), bg="white").pack(anchor="w", pady=(0, 16))
+
+        img_path = self.get_image_path(vehicle)
+        img = ImageHelper.load_image(img_path, size=(280, 180))
+        if img:
+            lbl = tk.Label(body, image=img, bg="white")
+            lbl.image = img
+            lbl.pack(anchor="w", pady=(0, 12))
+
+        info_card = RoundedFrame(body, corner_radius=12, bg_color="#f8f9fa")
+        info_card.pack(fill="x", pady=(0, 14))
+
+        status_color = "#27ae60" if vehicle['status'] == 'Available' else "#e74c3c"
+        info_rows = [
+            ("License Plate", vehicle['license_plate'], "#34495e"),
+            ("Year", vehicle['year'], "#34495e"),
+            ("Status", vehicle['status'], status_color),
+            ("Rate", f"P{vehicle['daily_rate']}/day", "#34495e")
         ]
-        for c in candidates:
-            p = os.path.join(base_path, c)
-            if os.path.exists(p):
-                return p
-        return ""
+        for label, value, color in info_rows:
+            row = tk.Frame(info_card.inner_frame, bg="#f8f9fa")
+            row.pack(fill="x", pady=4)
+            tk.Label(row, text=f"{label}:", font=("Segoe UI", 10, "bold"), bg="#f8f9fa", fg="#2c3e50").pack(side="left")
+            tk.Label(row, text=str(value), font=("Segoe UI", 10), bg="#f8f9fa", fg=color).pack(side="left", padx=(8, 0))
 
-    def approve_reservation(self, reservation):
-        if messagebox.askyesno("Confirm Approval", f"Approve rental request for {reservation['brand']} {reservation['model']} by {reservation['first_name']} {reservation['last_name']}?"):
-            try:
-                self.rental_controller.approve_reservation(reservation['reservation_id'])
-                messagebox.showinfo("Success", "Reservation approved successfully!")
-                self.load_pending_reservations()
-            except Exception as e:
-                messagebox.showerror("Error", str(e))
+        tk.Label(body, text="Rental History", font=("Segoe UI", 14, "bold"), bg="white").pack(anchor="w", pady=(6, 10))
 
-    def reject_reservation(self, reservation):
-        if messagebox.askyesno("Confirm Rejection", f"Reject rental request for {reservation['brand']} {reservation['model']} by {reservation['first_name']} {reservation['last_name']}?"):
-            try:
-                self.rental_controller.reject_reservation(reservation['reservation_id'])
-                messagebox.showinfo("Success", "Reservation rejected.")
-                self.load_pending_reservations()
-            except Exception as e:
-                messagebox.showerror("Error", str(e))
+        history = self.rental_controller.get_vehicle_rental_history(vehicle['vehicle_id'])
+        return_logs = self.rental_controller.get_vehicle_return_logs(vehicle['vehicle_id'])
+        return_notes = [log.get('description') for log in return_logs if log.get('description')]
+        completed_idx = 0
 
-    def process_return(self):
-        pass # Replaced by popup logic
+        if not history:
+            tk.Label(body, text="No rental history found.", font=("Segoe UI", 11), fg="#7f8c8d", bg="white").pack(anchor="w")
+            return
 
-    def add_vehicle(self):
-        pass # Replaced by popup logic
+        for h in history:
+            hist_card = RoundedFrame(body, corner_radius=12, bg_color="#ffffff")
+            hist_card.pack(fill="x", pady=6)
 
+            status = h.get('status', '')
+            status_bg = "#eafaf1" if status == 'Completed' else ("#fff4db" if status == 'Pending' else ("#eaf4ff" if status == 'Active' else "#f0f3f4"))
+            status_fg = "#145a32" if status == 'Completed' else ("#7d6608" if status == 'Pending' else ("#1b4f72" if status == 'Active' else "#2e4053"))
 
+            top = tk.Frame(hist_card.inner_frame, bg="#ffffff")
+            top.pack(fill="x")
+            customer_name = f"{h['first_name']} {h['last_name']}"
+            tk.Label(top, text=customer_name, font=("Segoe UI", 11, "bold"), bg="#ffffff", fg="#2c3e50").pack(side="left")
+            tk.Label(top, text=status, bg=status_bg, fg=status_fg, font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="right")
 
+            tk.Label(hist_card.inner_frame, text=f"Dates: {h['start_date']} to {h['end_date']}", font=("Segoe UI", 10), bg="#ffffff", fg="#5d6d7e").pack(anchor="w", pady=(5, 2))
+            cost_label = tk.Label(hist_card.inner_frame, text=f"Total Cost: P{h['total_cost']}", font=("Segoe UI", 10, "bold"), bg="#ffffff", fg="#117864")
+            if status in ['Cancelled', 'Rejected']:
+                strike_font = tkfont.Font(font=("Segoe UI", 10, "bold"))
+                strike_font.configure(overstrike=1)
+                cost_label.configure(font=strike_font, fg="#c0392b")
+            cost_label.pack(anchor="w")
 
-
-
+            if status == 'Completed':
+                note_text = return_notes[completed_idx] if completed_idx < len(return_notes) else "No return description recorded."
+                completed_idx += 1
+                tk.Label(
+                    hist_card.inner_frame,
+                    text=f"Return Description: {note_text}",
+                    font=("Segoe UI", 9),
+                    bg="#fcf3cf",
+                    fg="#7d6608",
+                    padx=10,
+                    pady=6,
+                    wraplength=430,
+                    justify="left"
+                ).pack(fill="x", pady=(8, 0))
+            elif status == 'Cancelled':
+                cancel_reason = h.get('cancel_reason') or 'No cancellation reason provided.'
+                tk.Label(
+                    hist_card.inner_frame,
+                    text=f"Cancellation Reason: {cancel_reason}",
+                    font=("Segoe UI", 9),
+                    bg="#fdecea",
+                    fg="#922b21",
+                    padx=10,
+                    pady=6,
+                    wraplength=430,
+                    justify="left"
+                ).pack(fill="x", pady=(8, 0))
+            elif status == 'Rejected':
+                reject_reason = h.get('reject_reason') or 'No rejection reason provided.'
+                tk.Label(
+                    hist_card.inner_frame,
+                    text=f"Rejection Reason: {reject_reason}",
+                    font=("Segoe UI", 9),
+                    bg="#f0f3f4",
+                    fg="#2e4053",
+                    padx=10,
+                    pady=6,
+                    wraplength=430,
+                    justify="left"
+                ).pack(fill="x", pady=(8, 0))

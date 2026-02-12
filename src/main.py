@@ -15,12 +15,25 @@ class MainApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Vehicle Rental System")
-        self.geometry("1000x700")
+        self._configure_window_size()
         
         self.auth_controller = AuthController()
         self.current_user = None
         
         self.show_login()
+
+    def _configure_window_size(self):
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+
+        window_width = min(1600, int(screen_width * 0.92))
+        window_height = min(950, int(screen_height * 0.90))
+
+        pos_x = max((screen_width - window_width) // 2, 0)
+        pos_y = max((screen_height - window_height) // 2, 0)
+
+        self.geometry(f"{window_width}x{window_height}+{pos_x}+{pos_y}")
+        self.minsize(1280, 760)
 
     def show_login(self):
         self.clear_window()
@@ -53,4 +66,9 @@ class MainApp(tk.Tk):
 
 if __name__ == "__main__":
     app = MainApp()
-    app.mainloop()
+    try:
+        app.mainloop()
+    except KeyboardInterrupt:
+        # Gracefully handle Ctrl+C
+        app.destroy()
+        sys.exit(0)

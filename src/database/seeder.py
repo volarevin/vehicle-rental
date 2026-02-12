@@ -72,20 +72,6 @@ def seed_database():
         )
         print("Vehicles seeded.")
 
-        # Seed Equipment
-        equipment = [
-            ("GPS Navigation", 200.00),
-            ("Child Safety Seat", 150.00),
-            ("Ski Rack", 300.00), # Maybe less common in PH but requested
-            ("Dash Cam", 100.00)
-        ]
-
-        cursor.executemany(
-            "INSERT IGNORE INTO Equipment (name, daily_rate) VALUES (%s, %s)",
-            equipment
-        )
-        print("Equipment seeded.")
-
         conn.commit()
         cursor.close()
         conn.close()

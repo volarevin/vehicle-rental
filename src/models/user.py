@@ -24,6 +24,11 @@ class User(ABC):
     def role(self):
         return self._role
 
+    def update_profile_info(self, username, first_name, last_name):
+        self._username = username
+        self._first_name = first_name
+        self._last_name = last_name
+
     @abstractmethod
     def get_permissions(self):
         pass

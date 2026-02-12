@@ -23,12 +23,6 @@ CREATE TABLE IF NOT EXISTS Vehicles (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Equipment Table
-CREATE TABLE IF NOT EXISTS Equipment (
-    equipment_id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    daily_rate DECIMAL(10, 2) NOT NULL
-);
 
 -- Reservations Table
 CREATE TABLE IF NOT EXISTS Reservations (
@@ -38,20 +32,13 @@ CREATE TABLE IF NOT EXISTS Reservations (
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     status ENUM('Pending', 'Active', 'Completed', 'Cancelled', 'Rejected') DEFAULT 'Pending',
+    cancel_reason TEXT,
+    reject_reason TEXT,
     insurance_added BOOLEAN DEFAULT FALSE,
     total_cost DECIMAL(10, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES Users(user_id),
     FOREIGN KEY (vehicle_id) REFERENCES Vehicles(vehicle_id)
-);
-
--- Reservation Equipment Junction Table
-CREATE TABLE IF NOT EXISTS Reservation_Equipment (
-    reservation_id INT NOT NULL,
-    equipment_id INT NOT NULL,
-    FOREIGN KEY (reservation_id) REFERENCES Reservations(reservation_id),
-    FOREIGN KEY (equipment_id) REFERENCES Equipment(equipment_id),
-    PRIMARY KEY (reservation_id, equipment_id)
 );
 
 -- Vehicle Logs Table
