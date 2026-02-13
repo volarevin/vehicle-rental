@@ -129,7 +129,7 @@ class AdminDashboard(tk.Frame):
         ).pack(side="right")
 
         cards_frame = tk.Frame(container, bg="white")
-        cards_frame.pack(fill="x", pady=(0, 16))
+        cards_frame.pack(fill="x", pady=(0, 10))
 
         self.create_stat_card(cards_frame, "Total Earnings", f"₱{stats['total_earnings']:,.2f}", "#27ae60", 0, 0, "total_earnings.png")
         self.create_stat_card(cards_frame, "Active Rentals", str(stats['active_rentals']), "#3498db", 0, 1, "active_rentals.png")
@@ -148,70 +148,59 @@ class AdminDashboard(tk.Frame):
         cards_frame.grid_rowconfigure(1, weight=1)
 
         chart_section = tk.Frame(container, bg="white")
-        chart_section.pack(fill="both", expand=True, pady=(4, 0))
+        chart_section.pack(fill="x", pady=(4, 0))
         chart_section.grid_rowconfigure(0, weight=1)
         chart_section.grid_columnconfigure(0, weight=1)
 
         self.draw_monthly_income_chart(chart_section, monthly_stats, top_type)
 
     def create_stat_card(self, parent, title, value, color, row, col, icon_name):
-        card = RoundedFrame(parent, height=112, corner_radius=15, bg_color=color)
-        card.grid(row=row, column=col, padx=8, pady=8, sticky="nsew")
+        card = RoundedFrame(parent, height=78, corner_radius=15, bg_color=color)
+        card.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
         
         inner_content = tk.Frame(card.inner_frame, bg=color)
-        inner_content.pack(fill="both", expand=True, padx=15, pady=15)
+        inner_content.pack(fill="both", expand=True, padx=10, pady=8)
         
         try:
             icon_path = os.path.join(os.path.dirname(__file__), "..", "img", "icons", icon_name)
-            icon_img = ImageHelper.load_image(icon_path, (40, 40))
+            icon_img = ImageHelper.load_image(icon_path, (24, 24))
             if icon_img:
                 icon_lbl = tk.Label(inner_content, image=icon_img, bg=color)
                 icon_lbl.image = icon_img
-                icon_lbl.pack(side="left", padx=(0, 10))
+                icon_lbl.pack(side="left", padx=(0, 6))
         except Exception:
             pass
 
         text_content = tk.Frame(inner_content, bg=color)
         text_content.pack(side="left", fill="both")
         
-        tk.Label(text_content, text=title, bg=color, fg="white", font=("Segoe UI", 12)).pack(anchor="w")
-        tk.Label(text_content, text=value, bg=color, fg="white", font=("Segoe UI", 18, "bold")).pack(anchor="w")
+        tk.Label(text_content, text=title, bg=color, fg="white", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        tk.Label(text_content, text=value, bg=color, fg="white", font=("Segoe UI", 12, "bold")).pack(anchor="w")
 
     def draw_monthly_income_chart(self, parent, monthly_stats, top_type):
-        container = RoundedFrame(parent, bg_color="#ecf0f1", corner_radius=15)
+        container = RoundedFrame(parent, height=340, bg_color="#ecf0f1", corner_radius=15)
         container.grid(row=0, column=0, sticky="nsew")
 
-        title_row = tk.Frame(container.inner_frame, bg="#ecf0f1")
-        title_row.pack(fill="x", padx=16, pady=(12, 4))
-        tk.Label(title_row, text="This Month Analytics", bg="#ecf0f1", fg="#2c3e50", font=("Segoe UI", 14, "bold")).pack(side="left")
-        tk.Label(
-            title_row,
-            text=f"Top Type: {top_type['type']} (₱{top_type['revenue']:,.0f})",
-            bg="#ecf0f1",
-            fg="#34495e",
-            font=("Segoe UI", 11, "bold")
-        ).pack(side="right")
-
         metric_row = tk.Frame(container.inner_frame, bg="#ecf0f1")
-        metric_row.pack(fill="x", padx=16, pady=(4, 10))
+        metric_row.pack(fill="x", padx=14, pady=(8, 6))
 
-        revenue_card = RoundedFrame(metric_row, width=220, height=56, corner_radius=12, bg_color="#d1f2eb")
-        revenue_card.pack(side="left", padx=(0, 10))
-        tk.Label(revenue_card.inner_frame, text="Revenue", bg="#d1f2eb", fg="#117864", font=("Segoe UI", 10, "bold")).pack(anchor="w")
-        tk.Label(revenue_card.inner_frame, text=f"₱{monthly_stats['month_revenue']:,.0f}", bg="#d1f2eb", fg="#117864", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        revenue_card = RoundedFrame(metric_row, width=170, height=38, corner_radius=10, bg_color="#d1f2eb")
+        revenue_card.pack(side="left", padx=(0, 8))
+        tk.Label(revenue_card.inner_frame, text="Revenue", bg="#d1f2eb", fg="#117864", font=("Segoe UI", 8, "bold")).pack(anchor="w")
+        tk.Label(revenue_card.inner_frame, text=f"₱{monthly_stats['month_revenue']:,.0f}", bg="#d1f2eb", fg="#117864", font=("Segoe UI", 9, "bold")).pack(anchor="w")
 
-        bookings_card = RoundedFrame(metric_row, width=180, height=56, corner_radius=12, bg_color="#d6eaf8")
-        bookings_card.pack(side="left", padx=(0, 10))
-        tk.Label(bookings_card.inner_frame, text="Bookings", bg="#d6eaf8", fg="#1b4f72", font=("Segoe UI", 10, "bold")).pack(anchor="w")
-        tk.Label(bookings_card.inner_frame, text=str(monthly_stats['total_reservations']), bg="#d6eaf8", fg="#1b4f72", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        bookings_card = RoundedFrame(metric_row, width=140, height=38, corner_radius=10, bg_color="#d6eaf8")
+        bookings_card.pack(side="left", padx=(0, 8))
+        tk.Label(bookings_card.inner_frame, text="Bookings", bg="#d6eaf8", fg="#1b4f72", font=("Segoe UI", 8, "bold")).pack(anchor="w")
+        tk.Label(bookings_card.inner_frame, text=str(monthly_stats['total_reservations']), bg="#d6eaf8", fg="#1b4f72", font=("Segoe UI", 9, "bold")).pack(anchor="w")
 
-        cancelled_card = RoundedFrame(metric_row, width=180, height=56, corner_radius=12, bg_color="#fadbd8")
+        cancelled_card = RoundedFrame(metric_row, width=140, height=38, corner_radius=10, bg_color="#fadbd8")
         cancelled_card.pack(side="left")
-        tk.Label(cancelled_card.inner_frame, text="Cancelled", bg="#fadbd8", fg="#922b21", font=("Segoe UI", 10, "bold")).pack(anchor="w")
-        tk.Label(cancelled_card.inner_frame, text=str(monthly_stats['cancelled_count']), bg="#fadbd8", fg="#922b21", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        tk.Label(cancelled_card.inner_frame, text="Cancelled", bg="#fadbd8", fg="#922b21", font=("Segoe UI", 8, "bold")).pack(anchor="w")
+        tk.Label(cancelled_card.inner_frame, text=str(monthly_stats['cancelled_count']), bg="#fadbd8", fg="#922b21", font=("Segoe UI", 9, "bold")).pack(anchor="w")
         
-        canvas = tk.Canvas(container.inner_frame, bg="#ecf0f1", highlightthickness=0)
-        canvas.pack(fill="both", expand=True, padx=16, pady=(0, 14))
+        canvas = tk.Canvas(container.inner_frame, bg="#ecf0f1", highlightthickness=0, height=220)
+        canvas.pack(fill="x", padx=14, pady=(0, 8))
         
         data = self.controller.get_monthly_earnings_data()
         
@@ -224,15 +213,15 @@ class AdminDashboard(tk.Frame):
         h = canvas.winfo_height()
         if w < 200:
             w = 660
-        if h < 150:
-            h = 300
+        if h < 160:
+            h = 220
 
         max_val = max(float(d['total']) for d in data)
         max_val = max_val * 1.1 if max_val > 0 else 1
-        chart_left = 46
-        chart_right = w - 20
-        chart_top = 20
-        chart_bottom = h - 34
+        chart_left = 36
+        chart_right = w - 14
+        chart_top = 16
+        chart_bottom = h - 40
 
         for step in range(4):
             y = chart_top + step * ((chart_bottom - chart_top) / 3)
@@ -249,8 +238,17 @@ class AdminDashboard(tk.Frame):
             y1 = chart_bottom - bar_height
 
             canvas.create_rectangle(x, y1, x + bar_width, chart_bottom, fill="#3498db", outline="")
-            canvas.create_text(x + bar_width / 2, chart_bottom + 12, text=item['day'], fill="#34495e", font=("Segoe UI", 8))
-            canvas.create_text(x + bar_width / 2, y1 - 9, text=f"{total:,.0f}", fill="#2c3e50", font=("Segoe UI", 8, "bold"))
+            canvas.create_text(x + bar_width / 2, chart_bottom + 9, text=item['day'], fill="#34495e", font=("Segoe UI", 7))
+            canvas.create_text(x + bar_width / 2, y1 - 7, text=f"{total:,.0f}", fill="#2c3e50", font=("Segoe UI", 7, "bold"))
+
+        canvas.create_text(
+            w / 2,
+            h - 2,
+            text="This Month Analytics",
+            anchor="s",
+            fill="#2c3e50",
+            font=("Segoe UI", 10, "bold")
+        )
 
     def draw_status_overview(self, parent, reservation_status, vehicle_status):
         card = RoundedFrame(parent, bg_color="#ecf0f1", corner_radius=15)

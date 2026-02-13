@@ -383,8 +383,14 @@ def create_reservation(self, user_id, vehicle_id, start_date, end_date, insuranc
   delta = (end_date - start_date).days
   if delta < 1: delta = 1
 
-  v_query = "SELECT daily_rate FROM Vehicles WHERE vehicle_id = %s"
+  v_query = "SELECT daily_rate, status FROM Vehicles WHERE vehicle_id = %s"
   vehicle = self.db.fetch_one(v_query, (vehicle_id,))
+  if not vehicle:
+    return False
+
+  if vehicle.get('status') != 'Available':
+    return False
+
   base_cost = float(vehicle['daily_rate']) * delta
 
   total_cost = base_cost
@@ -399,3 +405,25 @@ def create_reservation(self, user_id, vehicle_id, start_date, end_date, insuranc
   return True
 
 Located in: src/controllers/rental_controller.py (line 29)
+
+
+============================================================
+12) Backend Update Notes (2026-02-13)
+============================================================
+
+The following backend changes were applied after the initial analysis and are now reflected in the codebase:
+
+1. Member vehicle catalog support
+- Added `get_member_vehicle_catalog(vehicle_type=None)` in `src/controllers/rental_controller.py`.
+- This method returns vehicles with status in `('Available', 'Maintenance')`, ordered so rentable vehicles appear first.
+- Effect: members can see maintenance vehicles in listings while still being prevented from renting them.
+
+2. Stronger reservation eligibility validation
+- `create_reservation(...)` now fetches both `daily_rate` and `status`.
+- It returns `False` when vehicle record is missing or when status is not `Available`.
+- Effect: backend now enforces rental eligibility even if UI checks are bypassed.
+
+3. OOP/architecture impact
+- Encapsulation improved: rental business rules are enforced centrally in controller methods.
+- Abstraction improved: UI can call high-level methods without embedding status rules.
+- Design remains layered and backward-compatible with existing controller usage patterns.

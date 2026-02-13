@@ -40,7 +40,7 @@ class ReceptionistDashboard(tk.Frame):
         self.main_container.pack(side="top", fill="both", expand=True)
 
         # 1. Left Sidebar
-        self.side_bar = tk.Frame(self.main_container, bg="#34495e", width=280)
+        self.side_bar = tk.Frame(self.main_container, bg="#34495e", width=240)
         self.side_bar.pack(side="left", fill="y")
         self.side_bar.pack_propagate(False)
 
@@ -80,7 +80,7 @@ class ReceptionistDashboard(tk.Frame):
         self.create_sidebar_button("Vehicle History", "history.png", self.show_history_view)
 
         # 2. Middle List Pane (wider to avoid cramped controls)
-        self.list_pane = tk.Frame(self.main_container, bg="#f8f9fa", width=760)
+        self.list_pane = tk.Frame(self.main_container, bg="#f8f9fa", width=640)
         self.list_pane.pack(side="left", fill="both", expand=True)
         self.list_pane.pack_propagate(False)
         
@@ -94,15 +94,21 @@ class ReceptionistDashboard(tk.Frame):
         self.controls_bar = tk.Frame(self.list_pane, bg="#f8f9fa")
         self.controls_bar.pack(fill="x", padx=10, pady=(0, 8))
 
+        self.controls_top_row = tk.Frame(self.controls_bar, bg="#f8f9fa")
+        self.controls_top_row.pack(fill="x", pady=(0, 6))
+
+        self.controls_actions_row = tk.Frame(self.controls_bar, bg="#f8f9fa")
+        self.controls_actions_row.pack(fill="x")
+
         self.search_var = tk.StringVar()
         self.filter_var = tk.StringVar(value="All")
 
-        tk.Label(self.controls_bar, text="Search", bg="#f8f9fa", fg="#2c3e50", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 5))
-        self.search_entry = tk.Entry(self.controls_bar, textvariable=self.search_var, font=("Segoe UI", 10), width=20)
+        tk.Label(self.controls_top_row, text="Search", bg="#f8f9fa", fg="#2c3e50", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 5))
+        self.search_entry = tk.Entry(self.controls_top_row, textvariable=self.search_var, font=("Segoe UI", 10), width=20)
         self.search_entry.pack(side="left", padx=(0, 6), ipady=4)
 
         RoundedButton(
-            self.controls_bar,
+            self.controls_top_row,
             width=114,
             height=36,
             corner_radius=10,
@@ -116,12 +122,12 @@ class ReceptionistDashboard(tk.Frame):
             text_align="center"
         ).pack(side="left", padx=(0, 8))
 
-        tk.Label(self.controls_bar, text="Filter", bg="#f8f9fa", fg="#2c3e50", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 5))
-        self.filter_combo = ttk.Combobox(self.controls_bar, textvariable=self.filter_var, values=["All"], state="readonly", width=16)
+        tk.Label(self.controls_top_row, text="Filter", bg="#f8f9fa", fg="#2c3e50", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 5))
+        self.filter_combo = ttk.Combobox(self.controls_top_row, textvariable=self.filter_var, values=["All"], state="readonly", width=16)
         self.filter_combo.pack(side="left", padx=(0, 6))
 
         RoundedButton(
-            self.controls_bar,
+            self.controls_top_row,
             width=106,
             height=36,
             corner_radius=10,
@@ -136,7 +142,7 @@ class ReceptionistDashboard(tk.Frame):
         ).pack(side="left", padx=(0, 6))
 
         RoundedButton(
-            self.controls_bar,
+            self.controls_actions_row,
             width=106,
             height=36,
             corner_radius=10,
@@ -151,7 +157,7 @@ class ReceptionistDashboard(tk.Frame):
         ).pack(side="left", padx=(0, 6))
 
         RoundedButton(
-            self.controls_bar,
+            self.controls_actions_row,
             width=114,
             height=36,
             corner_radius=10,
@@ -165,15 +171,15 @@ class ReceptionistDashboard(tk.Frame):
             text_align="center"
         ).pack(side="left")
 
-        self.extra_action_holder = tk.Frame(self.controls_bar, bg="#f8f9fa")
+        self.extra_action_holder = tk.Frame(self.controls_actions_row, bg="#f8f9fa")
         self.extra_action_holder.pack(side="right")
         
         self.list_scroll = ScrollableFrame(self.list_pane, bg="#f8f9fa")
         self.list_scroll.pack(fill="both", expand=True, padx=10, pady=10)
 
         # 3. Right Detail Pane (narrower so center pane has more room)
-        self.detail_pane = tk.Frame(self.main_container, bg="white", width=520)
-        self.detail_pane.pack(side="left", fill="y")
+        self.detail_pane = tk.Frame(self.main_container, bg="white", width=420)
+        self.detail_pane.pack(side="left", fill="both", expand=True)
         self.detail_pane.pack_propagate(False)
         
         # Container inside detail pane so we can clear it easily
@@ -186,7 +192,7 @@ class ReceptionistDashboard(tk.Frame):
         # Fix path: go up from src/views/ to src/img/icons
         icon_path = os.path.join(os.path.dirname(__file__), "..", "img", "icons", icon_name)
         
-        btn = RoundedButton(self.sidebar_menu, width=260, height=50, corner_radius=10, bg_color="#34495e", fg_color="white", text=text, command=command, image_path=icon_path)
+        btn = RoundedButton(self.sidebar_menu, width=220, height=50, corner_radius=10, bg_color="#34495e", fg_color="white", text=text, command=command, image_path=icon_path)
         btn.pack(pady=5)
 
     def clear_list(self):
@@ -292,7 +298,7 @@ class ReceptionistDashboard(tk.Frame):
     def create_vehicle_rich_list_item(self, vehicle, click_callback):
         style = self.get_vehicle_status_style(vehicle.get('status', 'Available'))
         frame = RoundedFrame(self.list_scroll.scrollable_frame, width=700, height=146, corner_radius=12, bg_color=style['card'])
-        frame.pack(pady=6)
+        frame.pack(fill="x", pady=6)
 
         row = tk.Frame(frame.inner_frame, bg=style['card'])
         row.pack(fill="both", expand=True, padx=12, pady=10)
@@ -487,7 +493,7 @@ class ReceptionistDashboard(tk.Frame):
     def create_rental_list_item(self, rental):
         style = self.get_reservation_status_style(rental.get('status', 'Active'))
         frame = RoundedFrame(self.list_scroll.scrollable_frame, width=700, height=146, corner_radius=12, bg_color=style['card'])
-        frame.pack(pady=6)
+        frame.pack(fill="x", pady=6)
 
         row = tk.Frame(frame.inner_frame, bg=style['card'])
         row.pack(fill="both", expand=True, padx=12, pady=10)
@@ -522,7 +528,7 @@ class ReceptionistDashboard(tk.Frame):
     def create_approval_list_item(self, reservation):
         style = self.get_reservation_status_style(reservation.get('status', 'Pending'))
         frame = RoundedFrame(self.list_scroll.scrollable_frame, width=700, height=146, corner_radius=12, bg_color=style['card'])
-        frame.pack(pady=6)
+        frame.pack(fill="x", pady=6)
 
         row = tk.Frame(frame.inner_frame, bg=style['card'])
         row.pack(fill="both", expand=True, padx=12, pady=10)
@@ -699,18 +705,23 @@ class ReceptionistDashboard(tk.Frame):
         self._create_fleet_form(is_edit=False)
 
     def _create_fleet_form(self, is_edit, vehicle=None):
+        detail_scroll = ScrollableFrame(self.detail_container, bg="white")
+        detail_scroll.pack(fill="both", expand=True)
+        body = detail_scroll.scrollable_frame
+        body.configure(bg="white")
+
         title = f"Edit {vehicle['brand']} {vehicle['model']}" if is_edit else "Add New Vehicle"
-        tk.Label(self.detail_container, text=title, font=("Segoe UI", 24, "bold"), bg="white").pack(anchor="w", pady=(0, 20))
+        tk.Label(body, text=title, font=("Segoe UI", 24, "bold"), bg="white").pack(anchor="w", pady=(0, 20))
 
         if is_edit and vehicle:
             img_path = self.get_image_path(vehicle)
             img = ImageHelper.load_image(img_path, size=(300, 200))
             if img:
-                lbl = tk.Label(self.detail_container, image=img, bg="white")
+                lbl = tk.Label(body, image=img, bg="white")
                 lbl.image = img
                 lbl.pack(anchor="w", pady=(0, 20))
 
-        form = tk.Frame(self.detail_container, bg="white")
+        form = tk.Frame(body, bg="white")
         form.pack(anchor="w", fill="x")
 
         entries = {}
@@ -742,7 +753,7 @@ class ReceptionistDashboard(tk.Frame):
         tk.Entry(img_entry_frame, textvariable=self.img_path_var, width=20).pack(side="left")
         tk.Button(img_entry_frame, text="Browse", command=self.browse_image).pack(side="left", padx=5)
 
-        btn_frame = tk.Frame(self.detail_container, bg="white")
+        btn_frame = tk.Frame(body, bg="white")
         btn_frame.pack(anchor="w", pady=30)
 
         def save():

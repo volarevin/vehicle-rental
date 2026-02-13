@@ -35,6 +35,15 @@ class RentalController:
             params.append(vehicle_type)
         return self.db.fetch_all(query, tuple(params))
 
+    def get_member_vehicle_catalog(self, vehicle_type=None):
+        query = "SELECT * FROM Vehicles WHERE status IN ('Available', 'Maintenance')"
+        params = []
+        if vehicle_type and vehicle_type != "All":
+            query += " AND type = %s"
+            params.append(vehicle_type)
+        query += " ORDER BY FIELD(status, 'Available', 'Maintenance'), brand, model"
+        return self.db.fetch_all(query, tuple(params))
+
     def get_receptionist_dashboard_stats(self):
         active_rentals = self.db.fetch_one("SELECT COUNT(*) AS count FROM Reservations WHERE status = 'Active'")
         pending_requests = self.db.fetch_one("SELECT COUNT(*) AS count FROM Reservations WHERE status = 'Pending'")
@@ -53,9 +62,15 @@ class RentalController:
         delta = (end_date - start_date).days
         if delta < 1: delta = 1
         
-        # Get vehicle rate
-        v_query = "SELECT daily_rate FROM Vehicles WHERE vehicle_id = %s"
+        # Get vehicle info and ensure it is rentable
+        v_query = "SELECT daily_rate, status FROM Vehicles WHERE vehicle_id = %s"
         vehicle = self.db.fetch_one(v_query, (vehicle_id,))
+        if not vehicle:
+            return False
+
+        if vehicle.get('status') != 'Available':
+            return False
+
         base_cost = float(vehicle['daily_rate']) * delta
 
         total_cost = base_cost

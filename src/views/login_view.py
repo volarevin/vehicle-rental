@@ -17,7 +17,12 @@ class LoginView(tk.Frame):
             self.controller.attributes('-fullscreen', True)
         
         self.create_layout()
+        self.bind("<Configure>", self._on_resize)
         self.show_login_form()
+
+    def _on_resize(self, event):
+        if event.widget is self:
+            self._resize_form_card()
 
     def _toggle_login_password(self):
         if self.password_entry.cget("show") == "*":
@@ -75,6 +80,17 @@ class LoginView(tk.Frame):
 
         self.form_container = tk.Frame(self.form_card.inner_frame, bg="white")
         self.form_container.pack(fill="both", expand=True, padx=32, pady=30)
+
+        self.after(0, self._resize_form_card)
+
+    def _resize_form_card(self):
+        self.update_idletasks()
+        right_width = max(self.right_panel.winfo_width(), 1)
+        right_height = max(self.right_panel.winfo_height(), 1)
+
+        target_width = max(360, min(480, right_width - 48))
+        target_height = max(430, min(560, right_height - 40))
+        self.form_card.configure(width=target_width, height=target_height)
 
     def clear_right_panel(self):
         for widget in self.form_container.winfo_children():

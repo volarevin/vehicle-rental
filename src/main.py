@@ -33,7 +33,9 @@ class MainApp(tk.Tk):
         pos_y = max((screen_height - window_height) // 2, 0)
 
         self.geometry(f"{window_width}x{window_height}+{pos_x}+{pos_y}")
-        self.minsize(1280, 760)
+        min_width = min(1024, max(880, screen_width - 80))
+        min_height = min(620, max(560, screen_height - 80))
+        self.minsize(min_width, min_height)
 
     def show_login(self):
         self.clear_window()

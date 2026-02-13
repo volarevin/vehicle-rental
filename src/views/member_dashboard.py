@@ -57,7 +57,7 @@ class MemberDashboard(tk.Frame):
         self.main_container = tk.Frame(self)
         self.main_container.pack(side="top", fill="both", expand=True)
 
-        self.side_bar = tk.Frame(self.main_container, bg="#34495e", width=280)
+        self.side_bar = tk.Frame(self.main_container, bg="#34495e", width=240)
         self.side_bar.pack(side="left", fill="y")
         self.side_bar.pack_propagate(False)
 
@@ -95,7 +95,7 @@ class MemberDashboard(tk.Frame):
         self.create_sidebar_button("My Reservations", "rental.png", self.show_history_view)
         self.create_sidebar_button("My Profile", "user.png", self.show_profile_view)
 
-        self.list_pane = tk.Frame(self.main_container, bg="#f8f9fa", width=760)
+        self.list_pane = tk.Frame(self.main_container, bg="#f8f9fa", width=640)
         self.list_pane.pack(side="left", fill="both", expand=True)
         self.list_pane.pack_propagate(False)
 
@@ -108,15 +108,21 @@ class MemberDashboard(tk.Frame):
         self.controls_bar = tk.Frame(self.list_pane, bg="#f8f9fa")
         self.controls_bar.pack(fill="x", padx=10, pady=(0, 8))
 
+        self.controls_top_row = tk.Frame(self.controls_bar, bg="#f8f9fa")
+        self.controls_top_row.pack(fill="x", pady=(0, 6))
+
+        self.controls_actions_row = tk.Frame(self.controls_bar, bg="#f8f9fa")
+        self.controls_actions_row.pack(fill="x")
+
         self.search_var = tk.StringVar()
         self.filter_var = tk.StringVar(value="All")
 
-        tk.Label(self.controls_bar, text="Search", bg="#f8f9fa", fg="#2c3e50", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 5))
-        self.search_entry = tk.Entry(self.controls_bar, textvariable=self.search_var, font=("Segoe UI", 10), width=20)
+        tk.Label(self.controls_top_row, text="Search", bg="#f8f9fa", fg="#2c3e50", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 5))
+        self.search_entry = tk.Entry(self.controls_top_row, textvariable=self.search_var, font=("Segoe UI", 10), width=20)
         self.search_entry.pack(side="left", padx=(0, 6), ipady=4)
 
         RoundedButton(
-            self.controls_bar,
+            self.controls_top_row,
             width=114,
             height=36,
             corner_radius=10,
@@ -130,12 +136,12 @@ class MemberDashboard(tk.Frame):
             text_align="center"
         ).pack(side="left", padx=(0, 8))
 
-        tk.Label(self.controls_bar, text="Filter", bg="#f8f9fa", fg="#2c3e50", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 5))
-        self.filter_combo = ttk.Combobox(self.controls_bar, textvariable=self.filter_var, values=["All"], state="readonly", width=16)
+        tk.Label(self.controls_top_row, text="Filter", bg="#f8f9fa", fg="#2c3e50", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 5))
+        self.filter_combo = ttk.Combobox(self.controls_top_row, textvariable=self.filter_var, values=["All"], state="readonly", width=16)
         self.filter_combo.pack(side="left", padx=(0, 6))
 
         RoundedButton(
-            self.controls_bar,
+            self.controls_top_row,
             width=106,
             height=36,
             corner_radius=10,
@@ -150,7 +156,7 @@ class MemberDashboard(tk.Frame):
         ).pack(side="left", padx=(0, 6))
 
         RoundedButton(
-            self.controls_bar,
+            self.controls_actions_row,
             width=106,
             height=36,
             corner_radius=10,
@@ -165,7 +171,7 @@ class MemberDashboard(tk.Frame):
         ).pack(side="left", padx=(0, 6))
 
         RoundedButton(
-            self.controls_bar,
+            self.controls_actions_row,
             width=114,
             height=36,
             corner_radius=10,
@@ -182,8 +188,8 @@ class MemberDashboard(tk.Frame):
         self.list_scroll = ScrollableFrame(self.list_pane, bg="#f8f9fa")
         self.list_scroll.pack(fill="both", expand=True, padx=10, pady=10)
 
-        self.detail_pane = tk.Frame(self.main_container, bg="white", width=520)
-        self.detail_pane.pack(side="left", fill="y")
+        self.detail_pane = tk.Frame(self.main_container, bg="white", width=420)
+        self.detail_pane.pack(side="left", fill="both", expand=True)
         self.detail_pane.pack_propagate(False)
         
         self.detail_container = tk.Frame(self.detail_pane, bg="white")
@@ -193,7 +199,7 @@ class MemberDashboard(tk.Frame):
 
     def create_sidebar_button(self, text, icon_name, command):
         icon_path = self._icon_path(icon_name)
-        btn = RoundedButton(self.sidebar_menu, width=260, height=50, corner_radius=10, bg_color="#34495e", fg_color="white", text=text, command=command, image_path=icon_path)
+        btn = RoundedButton(self.sidebar_menu, width=220, height=50, corner_radius=10, bg_color="#34495e", fg_color="white", text=text, command=command, image_path=icon_path)
         btn.pack(pady=5)
 
     def clear_list(self):
@@ -441,13 +447,13 @@ class MemberDashboard(tk.Frame):
             self.current_items = [active_item]
             self.render_list_items(self.current_items)
         else:
-            self.current_items = self.rental_controller.get_available_vehicles()
+            self.current_items = self.rental_controller.get_member_vehicle_catalog()
             self.reset_list_filters()
 
     def create_vehicle_list_item(self, vehicle):
         style = self.get_vehicle_status_style(vehicle.get('status', 'Available'))
         frame = RoundedFrame(self.list_scroll.scrollable_frame, width=700, height=146, corner_radius=12, bg_color=style['card'])
-        frame.pack(pady=6)
+        frame.pack(fill="x", pady=6)
 
         row = tk.Frame(frame.inner_frame, bg=style['card'])
         row.pack(fill="both", expand=True, padx=12, pady=10)
@@ -476,6 +482,17 @@ class MemberDashboard(tk.Frame):
         daily_rate = float(vehicle.get('daily_rate') or 0)
         tk.Label(bottom, text=f"₱{daily_rate:,.0f} / day", bg="#d6eaf8", fg="#1b4f72", font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="left")
         tk.Label(bottom, text=f"ID #{vehicle['vehicle_id']}", bg="#f2f3f4", fg="#566573", font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="left", padx=(8, 0))
+
+        if vehicle.get('status') == 'Maintenance':
+            tk.Label(
+                bottom,
+                text="Unavailable for Renting",
+                bg="#f4ecf7",
+                fg="#7d3c98",
+                font=("Segoe UI", 9, "bold"),
+                padx=10,
+                pady=3
+            ).pack(side="right")
 
         def on_click(e):
             if self.rent_locked:
@@ -530,18 +547,54 @@ class MemberDashboard(tk.Frame):
             return
 
         self.clear_detail()
+        detail_scroll = ScrollableFrame(self.detail_container, bg="white")
+        detail_scroll.pack(fill="both", expand=True)
+        body = detail_scroll.scrollable_frame
+        body.configure(bg="white")
+
+        if vehicle.get('status') != 'Available':
+            tk.Label(body, text=f"{vehicle['brand']} {vehicle['model']}", font=("Segoe UI", 20, "bold"), bg="white").pack(anchor="w", pady=(0, 8))
+
+            img_path = self.get_image_path(vehicle)
+            img = ImageHelper.load_image(img_path, size=(400, 250))
+            if img:
+                lbl = tk.Label(body, image=img, bg="white")
+                lbl.image = img
+                lbl.pack(pady=10)
+
+            status = vehicle.get('status', 'Unavailable')
+            tk.Label(
+                body,
+                text=f"Status: {status}",
+                font=("Segoe UI", 11, "bold"),
+                bg="#f4ecf7",
+                fg="#7d3c98",
+                padx=12,
+                pady=8
+            ).pack(anchor="w", pady=(6, 10))
+
+            tk.Label(
+                body,
+                text="This vehicle is currently under maintenance and unavailable for renting.",
+                font=("Segoe UI", 11),
+                fg="#5d6d7e",
+                bg="white",
+                wraplength=440,
+                justify="left"
+            ).pack(anchor="w")
+            return
         
-        tk.Label(self.detail_container, text=f"Rent {vehicle['brand']} {vehicle['model']}", font=("Segoe UI", 20, "bold"), bg="white").pack(anchor="w", pady=(0, 10))
+        tk.Label(body, text=f"Rent {vehicle['brand']} {vehicle['model']}", font=("Segoe UI", 20, "bold"), bg="white").pack(anchor="w", pady=(0, 10))
 
         img_path = self.get_image_path(vehicle)
         img = ImageHelper.load_image(img_path, size=(400, 250))
         if img:
-            lbl = tk.Label(self.detail_container, image=img, bg="white")
+            lbl = tk.Label(body, image=img, bg="white")
             lbl.image = img
             lbl.pack(pady=10)
 
         # Details Grid
-        details_frame = tk.Frame(self.detail_container, bg="white")
+        details_frame = tk.Frame(body, bg="white")
         details_frame.pack(fill="x", pady=10)
         
         tk.Label(details_frame, text="Daily Rate:", font=("Segoe UI", 10, "bold"), bg="white").grid(row=0, column=0, sticky="w")
@@ -550,11 +603,11 @@ class MemberDashboard(tk.Frame):
         tk.Label(details_frame, text="Type:", font=("Segoe UI", 10, "bold"), bg="white").grid(row=1, column=0, sticky="w")
         tk.Label(details_frame, text=vehicle['type'], font=("Segoe UI", 10), bg="white").grid(row=1, column=1, sticky="w", padx=10)
 
-        separator = ttk.Separator(self.detail_container, orient='horizontal')
+        separator = ttk.Separator(body, orient='horizontal')
         separator.pack(fill='x', pady=15)
 
         # Form
-        form_frame = tk.Frame(self.detail_container, bg="white")
+        form_frame = tk.Frame(body, bg="white")
         form_frame.pack(fill="x")
 
         tk.Label(form_frame, text="Reservation Dates", font=("Segoe UI", 12, "bold"), bg="white").pack(anchor="w", pady=(0, 10))
@@ -621,7 +674,7 @@ class MemberDashboard(tk.Frame):
             insurance_var.set(False)
             calculate_total()
 
-        actions = tk.Frame(self.detail_container, bg="white")
+        actions = tk.Frame(body, bg="white")
         actions.pack(anchor="w", pady=24)
         RoundedButton(actions, width=190, height=45, corner_radius=10,
                      bg_color="#27ae60", fg_color="white", text="Confirm Reservation", command=confirm_rent,
@@ -659,7 +712,7 @@ class MemberDashboard(tk.Frame):
 
     def create_profile_list_item(self, profile_item):
         frame = RoundedFrame(self.list_scroll.scrollable_frame, width=700, height=110, corner_radius=12, bg_color="#ffffff")
-        frame.pack(pady=6)
+        frame.pack(fill="x", pady=6)
 
         row = tk.Frame(frame.inner_frame, bg="#ffffff")
         row.pack(fill="both", expand=True, padx=12, pady=10)
@@ -801,7 +854,7 @@ class MemberDashboard(tk.Frame):
     def create_reservation_list_item(self, res):
         style = self.get_reservation_status_style(res.get('status', 'Pending'))
         frame = RoundedFrame(self.list_scroll.scrollable_frame, width=700, height=146, corner_radius=12, bg_color=style['card'])
-        frame.pack(pady=6)
+        frame.pack(fill="x", pady=6)
 
         row = tk.Frame(frame.inner_frame, bg=style['card'])
         row.pack(fill="both", expand=True, padx=12, pady=10)
