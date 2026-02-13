@@ -8,7 +8,7 @@ class AdminController:
     def get_dashboard_stats(self):
         stats = {}
         
-        # Total Earnings (Completed or Active, excluding Cancelled and Rejected)
+        # Total Earnings 
         query_earnings = "SELECT SUM(total_cost) as total FROM Reservations WHERE status NOT IN ('Cancelled', 'Rejected')"
         res_earnings = self.db.fetch_one(query_earnings)
         if res_earnings and res_earnings['total']:
