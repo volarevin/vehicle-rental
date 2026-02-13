@@ -11,22 +11,34 @@ class AdminController:
         # Total Earnings (Completed or Active, excluding Cancelled and Rejected)
         query_earnings = "SELECT SUM(total_cost) as total FROM Reservations WHERE status NOT IN ('Cancelled', 'Rejected')"
         res_earnings = self.db.fetch_one(query_earnings)
-        stats['total_earnings'] = res_earnings['total'] if res_earnings and res_earnings['total'] else 0.0
+        if res_earnings and res_earnings['total']:
+            stats['total_earnings'] = res_earnings['total']
+        else:
+            stats['total_earnings'] = 0.0
 
         # Active Rentals
         query_active = "SELECT COUNT(*) as count FROM Reservations WHERE status = 'Active'"
         res_active = self.db.fetch_one(query_active)
-        stats['active_rentals'] = res_active['count'] if res_active else 0
+        if res_active:
+            stats['active_rentals'] = res_active['count']
+        else:
+            stats['active_rentals'] = 0
 
         # Total Users
         query_users = "SELECT COUNT(*) as count FROM Users"
         res_users = self.db.fetch_one(query_users)
-        stats['total_users'] = res_users['count'] if res_users else 0
+        if res_users:
+            stats['total_users'] = res_users['count']
+        else:
+            stats['total_users'] = 0
 
         # Total Vehicles
         query_vehicles = "SELECT COUNT(*) as count FROM Vehicles"
         res_vehicles = self.db.fetch_one(query_vehicles)
-        stats['total_vehicles'] = res_vehicles['count'] if res_vehicles else 0
+        if res_vehicles:
+            stats['total_vehicles'] = res_vehicles['count']
+        else:
+            stats['total_vehicles'] = 0
 
         return stats
 
@@ -71,7 +83,9 @@ class AdminController:
             conditions.append("r.status = %s")
             params.append(status)
 
-        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        where_clause = ""
+        if conditions:
+            where_clause = "WHERE " + " AND ".join(conditions)
 
         query = f"""
             SELECT
@@ -83,7 +97,9 @@ class AdminController:
             FROM Reservations r
             {where_clause}
         """
-        result = self.db.fetch_one(query, tuple(params)) or {}
+        result = self.db.fetch_one(query, tuple(params))
+        if not result:
+            result = {}
         return {
             'reservation_count': int(result.get('reservation_count') or 0),
             'total_revenue': float(result.get('total_revenue') or 0),
@@ -103,7 +119,7 @@ class AdminController:
             conditions.append("r.status = %s")
             params.append(status)
 
-        where_clause = f"WHERE {' AND '.join(conditions)}"
+        where_clause = "WHERE " + " AND ".join(conditions)
 
         query = f"""
             SELECT v.type, COALESCE(SUM(r.total_cost), 0) AS earnings
@@ -123,7 +139,9 @@ class AdminController:
             conditions.append("DATE_FORMAT(start_date, '%Y-%m') = %s")
             params.append(month_key)
 
-        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        where_clause = ""
+        if conditions:
+            where_clause = "WHERE " + " AND ".join(conditions)
 
         query = f"""
             SELECT status, COUNT(*) AS total
@@ -149,7 +167,9 @@ class AdminController:
             FROM Reservations
             WHERE DATE_FORMAT(start_date, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')
         """
-        result = self.db.fetch_one(query) or {}
+        result = self.db.fetch_one(query)
+        if not result:
+            result = {}
         return {
             'month_revenue': float(result.get('month_revenue') or 0),
             'total_reservations': int(result.get('total_reservations') or 0),
@@ -165,7 +185,10 @@ class AdminController:
             GROUP BY status
         """
         data = self.db.fetch_all(query)
-        return {item['status']: int(item['total']) for item in data}
+        counts = {}
+        for item in data:
+            counts[item['status']] = int(item['total'])
+        return counts
 
     def get_vehicle_status_counts(self):
         query = """
@@ -174,7 +197,10 @@ class AdminController:
             GROUP BY status
         """
         data = self.db.fetch_all(query)
-        return {item['status']: int(item['total']) for item in data}
+        counts = {}
+        for item in data:
+            counts[item['status']] = int(item['total'])
+        return counts
 
     def get_upcoming_returns(self, limit=5):
         query = """
@@ -205,15 +231,15 @@ class AdminController:
         return {'type': top['type'], 'revenue': float(top['revenue'] or 0)}
 
     def get_recent_reservations(self, limit=5):
-        query = f"""
+        query = """
             SELECT r.reservation_id, u.username, v.brand, v.model, r.created_at, r.total_cost
             FROM Reservations r
             JOIN Users u ON r.user_id = u.user_id
             JOIN Vehicles v ON r.vehicle_id = v.vehicle_id
             ORDER BY r.created_at DESC
-            LIMIT {limit}
+            LIMIT %s
         """
-        return self.db.fetch_all(query)
+        return self.db.fetch_all(query, (limit,))
 
     def get_all_users(self):
         return self.db.fetch_all("SELECT user_id, username, first_name, last_name, role FROM Users")

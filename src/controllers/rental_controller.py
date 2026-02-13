@@ -31,7 +31,7 @@ class RentalController:
         query = "SELECT * FROM Vehicles WHERE status = 'Available'"
         params = []
         if vehicle_type and vehicle_type != "All":
-            query += " AND type = %s"
+            query = query + " AND type = %s"
             params.append(vehicle_type)
         return self.db.fetch_all(query, tuple(params))
 
@@ -39,9 +39,9 @@ class RentalController:
         query = "SELECT * FROM Vehicles WHERE status IN ('Available', 'Maintenance')"
         params = []
         if vehicle_type and vehicle_type != "All":
-            query += " AND type = %s"
+            query = query + " AND type = %s"
             params.append(vehicle_type)
-        query += " ORDER BY FIELD(status, 'Available', 'Maintenance'), brand, model"
+        query = query + " ORDER BY FIELD(status, 'Available', 'Maintenance'), brand, model"
         return self.db.fetch_all(query, tuple(params))
 
     def get_receptionist_dashboard_stats(self):
@@ -50,17 +50,18 @@ class RentalController:
         available_vehicles = self.db.fetch_one("SELECT COUNT(*) AS count FROM Vehicles WHERE status = 'Available'")
         due_today = self.db.fetch_one("SELECT COUNT(*) AS count FROM Reservations WHERE status = 'Active' AND end_date = CURDATE()")
 
-        return {
-            'active_rentals': int((active_rentals or {}).get('count') or 0),
-            'pending_requests': int((pending_requests or {}).get('count') or 0),
-            'available_vehicles': int((available_vehicles or {}).get('count') or 0),
-            'due_today': int((due_today or {}).get('count') or 0)
-        }
+        stats = {}
+        stats['active_rentals'] = int((active_rentals or {}).get('count') or 0)
+        stats['pending_requests'] = int((pending_requests or {}).get('count') or 0)
+        stats['available_vehicles'] = int((available_vehicles or {}).get('count') or 0)
+        stats['due_today'] = int((due_today or {}).get('count') or 0)
+        return stats
 
     def create_reservation(self, user_id, vehicle_id, start_date, end_date, insurance):
         # Calculate days
         delta = (end_date - start_date).days
-        if delta < 1: delta = 1
+        if delta < 1:
+            delta = 1
         
         # Get vehicle info and ensure it is rentable
         v_query = "SELECT daily_rate, status FROM Vehicles WHERE vehicle_id = %s"
@@ -75,7 +76,7 @@ class RentalController:
 
         total_cost = base_cost
         if insurance:
-            total_cost += (500 * delta) # Flat 500 per day for insurance
+            total_cost = total_cost + (500 * delta) # Flat 500 per day for insurance
 
         # Insert Reservation as Pending (requires approval)
         ins_query = """
@@ -108,22 +109,88 @@ class RentalController:
         """
         return self.db.fetch_all(query)
 
-    def approve_reservation(self, reservation_id):
-        # Get reservation details
-        res_query = "SELECT vehicle_id FROM Reservations WHERE reservation_id = %s"
-        res = self.db.fetch_one(res_query, (reservation_id,))
-        if not res:
-            return False
-        
-        # Update Reservation Status to Active
-        upd_res = "UPDATE Reservations SET status = 'Active' WHERE reservation_id = %s"
-        self.db.execute_query(upd_res, (reservation_id,))
-        
-        # Update Vehicle Status to Rented
-        upd_veh = "UPDATE Vehicles SET status = 'Rented' WHERE vehicle_id = %s"
-        self.db.execute_query(upd_veh, (res['vehicle_id'],))
-        
-        return True
+    def approve_reservation(self, reservation_id, auto_reject_reason=None):
+        res_query = """
+            SELECT reservation_id, vehicle_id, status
+            FROM Reservations
+            WHERE reservation_id = %s
+        """
+        reservation = self.db.fetch_one(res_query, (reservation_id,))
+        if not reservation:
+            return {'success': False, 'message': 'Reservation not found'}
+
+        if reservation.get('status') != 'Pending':
+            return {'success': False, 'message': 'Only pending reservations can be approved'}
+
+        vehicle_id = reservation['vehicle_id']
+
+        active_conflict = self.db.fetch_one(
+            """
+            SELECT reservation_id
+            FROM Reservations
+            WHERE vehicle_id = %s AND status = 'Active'
+            LIMIT 1
+            """,
+            (vehicle_id,)
+        )
+        if active_conflict:
+            return {'success': False, 'message': 'This vehicle already has an active rental'}
+
+        conflicting_pending = self.db.fetch_one(
+            """
+            SELECT COUNT(*) AS count
+            FROM Reservations
+            WHERE vehicle_id = %s AND status = 'Pending' AND reservation_id <> %s
+            """,
+            (vehicle_id, reservation_id)
+        )
+        conflict_count = int((conflicting_pending or {}).get('count') or 0)
+
+        if conflict_count > 0 and not auto_reject_reason:
+            return {
+                'success': False,
+                'requires_reason': True,
+                'conflict_count': conflict_count,
+                'message': 'Rejection reason is required to auto-reject conflicting reservations'
+            }
+
+        approve_cursor = self.db.execute_query(
+            "UPDATE Reservations SET status = 'Active' WHERE reservation_id = %s AND status = 'Pending'",
+            (reservation_id,)
+        )
+        if approve_cursor is None or getattr(approve_cursor, 'rowcount', 0) == 0:
+            self.db.disconnect()
+            return {'success': False, 'message': 'Unable to approve reservation'}
+
+        vehicle_cursor = self.db.execute_query(
+            "UPDATE Vehicles SET status = 'Rented' WHERE vehicle_id = %s",
+            (vehicle_id,)
+        )
+        if vehicle_cursor is None:
+            self.db.disconnect()
+            return {'success': False, 'message': 'Unable to update vehicle status'}
+
+        auto_rejected_count = 0
+        if conflict_count > 0:
+            reject_cursor = self.db.execute_query(
+                """
+                UPDATE Reservations
+                SET status = 'Rejected', total_cost = 0, reject_reason = %s
+                WHERE vehicle_id = %s AND status = 'Pending' AND reservation_id <> %s
+                """,
+                (auto_reject_reason, vehicle_id, reservation_id)
+            )
+            if reject_cursor is None:
+                self.db.disconnect()
+                return {'success': False, 'message': 'Approved but failed to auto-reject conflicting requests'}
+            auto_rejected_count = max(getattr(reject_cursor, 'rowcount', 0), 0)
+
+        self.db.disconnect()
+        return {
+            'success': True,
+            'auto_rejected_count': auto_rejected_count,
+            'message': 'Reservation approved'
+        }
 
     def reject_reservation(self, reservation_id, reason=None):
         # Update Reservation Status to Rejected

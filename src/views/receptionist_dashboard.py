@@ -7,6 +7,8 @@ from src.utils.gui_helpers import RoundedFrame, RoundedButton, ScrollableFrame
 import tkinter.filedialog as filedialog
 import os
 import shutil
+from datetime import datetime
+from collections import Counter
 
 class ReceptionistDashboard(tk.Frame):
     def __init__(self, parent, user, logout_callback):
@@ -252,6 +254,22 @@ class ReceptionistDashboard(tk.Frame):
         for child in widget.winfo_children():
             self.bind_click_recursive(child, callback)
 
+    def _format_datetime_display(self, value):
+        if value is None:
+            return "N/A"
+        if hasattr(value, "strftime"):
+            return value.strftime("%Y-%m-%d %I:%M %p")
+        text_value = str(value).strip()
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d"):
+            try:
+                dt_value = datetime.strptime(text_value, fmt)
+                if fmt == "%Y-%m-%d":
+                    return dt_value.strftime("%Y-%m-%d")
+                return dt_value.strftime("%Y-%m-%d %I:%M %p")
+            except ValueError:
+                continue
+        return text_value
+
     def _prompt_reason_dialog(self, title, prompt_text):
         dialog = tk.Toplevel(self)
         dialog.title(title)
@@ -475,7 +493,15 @@ class ReceptionistDashboard(tk.Frame):
 
         self.update_summary_cards()
         self.configure_controls_for_view()
-        self.current_items = self.rental_controller.get_pending_reservations()
+        pending_reservations = self.rental_controller.get_pending_reservations()
+        vehicle_counts = Counter(item.get('vehicle_id') for item in pending_reservations if item.get('vehicle_id') is not None)
+
+        for reservation in pending_reservations:
+            same_vehicle_count = int(vehicle_counts.get(reservation.get('vehicle_id')) or 0)
+            reservation['same_vehicle_count'] = same_vehicle_count
+            reservation['has_same_vehicle_conflict'] = same_vehicle_count > 1
+
+        self.current_items = pending_reservations
         self.reset_list_filters()
 
     def show_fleet_view(self):
@@ -527,7 +553,8 @@ class ReceptionistDashboard(tk.Frame):
 
     def create_approval_list_item(self, reservation):
         style = self.get_reservation_status_style(reservation.get('status', 'Pending'))
-        frame = RoundedFrame(self.list_scroll.scrollable_frame, width=700, height=146, corner_radius=12, bg_color=style['card'])
+        frame_height = 172 if reservation.get('has_same_vehicle_conflict') else 146
+        frame = RoundedFrame(self.list_scroll.scrollable_frame, width=700, height=frame_height, corner_radius=12, bg_color=style['card'])
         frame.pack(fill="x", pady=6)
 
         row = tk.Frame(frame.inner_frame, bg=style['card'])
@@ -548,7 +575,33 @@ class ReceptionistDashboard(tk.Frame):
         tk.Label(top, text=f"{reservation['brand']} {reservation['model']}", font=("Segoe UI", 13, "bold"), bg=style['card'], fg="#2c3e50").pack(side="left")
         tk.Label(top, text=reservation.get('status', 'Pending'), bg=style['bg'], fg=style['fg'], font=("Segoe UI", 9, "bold"), padx=10, pady=3).pack(side="right")
 
-        tk.Label(body, text=f"Customer: {reservation['username']}  •  Dates: {reservation['start_date']} to {reservation['end_date']}", font=("Segoe UI", 10), bg=style['card'], fg="#5d6d7e").pack(anchor="w", pady=(5, 4))
+        created_text = self._format_datetime_display(reservation.get('created_at'))
+        tk.Label(body, text=f"Customer: {reservation['username']}  •  Dates: {reservation['start_date']} to {reservation['end_date']}", font=("Segoe UI", 10), bg=style['card'], fg="#5d6d7e").pack(anchor="w", pady=(5, 2))
+        tk.Label(body, text=f"Requested On: {created_text}", font=("Segoe UI", 9), bg=style['card'], fg="#7f8c8d").pack(anchor="w", pady=(0, 4))
+
+        if reservation.get('has_same_vehicle_conflict'):
+            conflict_row = tk.Frame(body, bg=style['card'])
+            conflict_row.pack(anchor="w", pady=(0, 4))
+
+            conflict_icon = ImageHelper.load_image(
+                os.path.join(os.path.dirname(__file__), "..", "img", "icons", "list.png"),
+                (14, 14)
+            )
+            if conflict_icon:
+                icon_label = tk.Label(conflict_row, image=conflict_icon, bg=style['card'])
+                icon_label.image = conflict_icon
+                icon_label.pack(side="left", padx=(0, 6))
+
+            same_vehicle_count = int(reservation.get('same_vehicle_count') or 0)
+            tk.Label(
+                conflict_row,
+                text=f"Multiple requests for this vehicle ({same_vehicle_count} total)",
+                bg="#fff4db",
+                fg="#7d6608",
+                font=("Segoe UI", 9, "bold"),
+                padx=10,
+                pady=2
+            ).pack(side="left")
 
         bottom = tk.Frame(body, bg=style['card'])
         bottom.pack(fill="x", pady=(4, 0))
@@ -659,6 +712,7 @@ class ReceptionistDashboard(tk.Frame):
             ("Vehicle", f"{reservation['brand']} {reservation['model']}"),
             ("Customer", f"{reservation['first_name']} {reservation['last_name']} ({reservation['username']})"),
             ("Dates", f"{reservation['start_date']} to {reservation['end_date']}"),
+            ("Requested On", self._format_datetime_display(reservation.get('created_at'))),
             ("Total Cost", f"P{reservation['total_cost']}"),
             ("Insurance", "Yes" if reservation['insurance_added'] else "No"),
             ("Status", reservation['status'])
@@ -676,11 +730,27 @@ class ReceptionistDashboard(tk.Frame):
         btn_frame.pack(anchor="w")
         
         def approve():
-            if self.rental_controller.approve_reservation(reservation['reservation_id']):
-                messagebox.showinfo("Success", "Rental approved")
+            result = self.rental_controller.approve_reservation(reservation['reservation_id'])
+
+            if result.get('requires_reason'):
+                count = int(result.get('conflict_count') or 0)
+                reason = self._prompt_reason_dialog(
+                    "Auto-Reject Details Required",
+                    f"Approving this request will automatically reject {count} other pending request(s) for the same vehicle.\nPlease enter the rejection details to continue."
+                )
+                if reason is None:
+                    return
+                result = self.rental_controller.approve_reservation(reservation['reservation_id'], reason)
+
+            if result.get('success'):
+                auto_rejected = int(result.get('auto_rejected_count') or 0)
+                if auto_rejected > 0:
+                    messagebox.showinfo("Success", f"Rental approved. {auto_rejected} conflicting request(s) were rejected automatically.")
+                else:
+                    messagebox.showinfo("Success", "Rental approved")
                 self.show_approvals_view()
             else:
-                messagebox.showerror("Error", "Failed to approve")
+                messagebox.showerror("Error", result.get('message') or "Failed to approve")
 
         def reject():
             reason = self._prompt_reason_dialog("Reject Request", "Please enter the reason for rejecting this rental request.")

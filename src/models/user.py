@@ -1,6 +1,4 @@
-from abc import ABC, abstractmethod
-
-class User(ABC):
+class User:
     def __init__(self, user_id, username, first_name, last_name, role):
         self._user_id = user_id
         self._username = username
@@ -8,30 +6,48 @@ class User(ABC):
         self._last_name = last_name
         self._role = role
 
-    @property
-    def user_id(self):
+    def get_user_id(self):
         return self._user_id
 
-    @property
-    def username(self):
+    def get_username(self):
         return self._username
 
-    @property
-    def full_name(self):
-        return f"{self._first_name} {self._last_name}"
-
-    @property
-    def role(self):
-        return self._role
-
-    def update_profile_info(self, username, first_name, last_name):
+    def set_username(self, username):
         self._username = username
+
+    def get_first_name(self):
+        return self._first_name
+
+    def set_first_name(self, first_name):
         self._first_name = first_name
+
+    def get_last_name(self):
+        return self._last_name
+
+    def set_last_name(self, last_name):
         self._last_name = last_name
 
-    @abstractmethod
+    def get_full_name(self):
+        return str(self._first_name) + " " + str(self._last_name)
+
+    def get_role(self):
+        return self._role
+
+    def set_role(self, role):
+        self._role = role
+
+    def update_profile_info(self, username, first_name, last_name):
+        self.set_username(username)
+        self.set_first_name(first_name)
+        self.set_last_name(last_name)
+
     def get_permissions(self):
-        pass
+        raise NotImplementedError("Child class must implement get_permissions")
+
+    user_id = property(get_user_id)
+    username = property(get_username, set_username)
+    full_name = property(get_full_name)
+    role = property(get_role, set_role)
 
 class Receptionist(User):
     def get_permissions(self):
